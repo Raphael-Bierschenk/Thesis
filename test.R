@@ -37,67 +37,39 @@ trading_days <- 242
 monthly_vars <- FF_daily %>%
   mutate(month = month(Date), year = year(Date)) %>%
   group_by(year, month) %>%
-  summarise(variance = var(Mkt) * trading_days * count(Mkt))
+  summarise(variance = var(Mkt) * trading_days)
 
 monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
 plot(monthly_vars$volatility, type = "l") # Compare to Figure 2: Looks identical but numbers wrong by factor ~16
-# test
-# try stuff out
-monthly_vars <- monthly_vars %>% mutate(var1 = 1 / variance)
-print(quantile(monthly_vars$var1, probs = c(0.5, 0.75, 0.9, 0.99)))
-iceal_c <- 6.39 / 0.063990642 
 
-FF_monthly$Mkt_y <- FF_monthly$Mkt * 12
-c = sqrt(var(FF_monthly$Mkt[2:1074])/
-           var(1/monthly_vars$variance[1:1073]*FF_monthly$Mkt[2:1074]))
 
-weights <- c(1:1073)
-vola_managed_returns <- c(1:1073)
-for (month in 2:1074) {
+
+# ***** Calculate c *****
+c = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars$variance[1:1065]*FF_monthly$Mkt[2:1066]))
+# Tried to hardcode c to obtain weight quantiles from paper but distribution itself seems to be unequal
+# -> Even if c is wrong, the problem occurs earlier
+
+
+# ***** Calculate weights and volatility managed returns *****
+weights <- c(1:1065)
+vola_managed_returns <- c(1:1065)
+
+for (month in 2:1066) {
   weights[month-1] <- c/monthly_vars$variance[month-1]
   vola_managed_returns[month-1] <- weights[month-1]*FF_monthly$Mkt[month]
 }
-returns <- data.frame(FF_monthly$Mkt[2:i], vola_managed_returns)
+returns <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns)
+colnames(returns) <- c("Market Returns", "Vola Managed Returns")
 
+
+# ***** Some descriptive statistics *****
 print(var(vola_managed_returns))
-print(var(FF_monthly$Mkt[2:i]))
-print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99)))
-
-
-
-
-for (i in 1062:1074) { # Simulate for various end months
-  j = i - 1
-  # ***** Calculate c *****
-  c = sqrt(var(FF_monthly$Mkt[2:i])/var(1/monthly_vars$variance[1:j]*FF_monthly$Mkt[2:i]))
-  # Tried to hardcode c to obtain weight quantiles from paper but distribution itself seems to be unequal
-  # -> Even if c is wrong, the problem occurs earlier
-  
-  
-  # ***** Calculate weights and volatility managed returns *****
-  weights <- c(1:j)
-  vola_managed_returns <- c(1:j)
-  
-  for (month in 2:i) {
-    weights[month-1] <- c/monthly_vars$variance[month-1]
-    vola_managed_returns[month-1] <- weights[month-1]*FF_monthly$Mkt[month]
-  }
-  returns <- data.frame(FF_monthly$Mkt[2:i], vola_managed_returns)
-  colnames(returns) <- c("Market Returns", "Vola Managed Returns")
-  
-  
-  # ***** Some descriptive statistics *****
-  print(var(vola_managed_returns))
-  print(var(FF_monthly$Mkt[2:i]))
-  print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
-  # When looping through all months of 2015 as end dates, the distribution is still very similar
-  # The 99% quantile does not vary much (ranges from 6.76 to 6.77)
-}
+print(var(FF_monthly$Mkt[2:1066]))
+print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
 plot(weights)
 summary(FF_monthly$Mkt)
 summary(vola_managed_returns)
 sort(weights, decreasing = TRUE)[1:20]
-sum(weights>=1) # No. of weights >= 1 (where leverage is needed)
 
 
 # ***** Calculate performance / total returns *****
