@@ -16,8 +16,8 @@ FF_monthly <- FF_monthly %>% rename(Date = X1)
 # Adjust end date --> end of 2015
 # @Stefan: why April? only says "2015" in paper
 
-last_day <- 20151231
-last_month <- 201512
+last_day <- 20150330
+last_month <- 201504
 
 last_entry_day <- which(FF_daily[,1] == last_day,)
 last_entry_month <- which(FF_monthly[,1] == last_month,)
@@ -41,7 +41,7 @@ monthly_vars <- FF_daily %>%
 
 monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
 plot(monthly_vars$volatility, type = "l") # Compare to Figure 2: Looks identical but numbers wrong by factor ~16
-
+# test
 # try stuff out
 monthly_vars <- monthly_vars %>% mutate(var1 = 1 / variance)
 print(quantile(monthly_vars$var1, probs = c(0.5, 0.75, 0.9, 0.99)))
