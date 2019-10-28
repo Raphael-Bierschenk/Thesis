@@ -3,31 +3,68 @@ library(ggplot2)
 library(scales)
 library(dplyr)
 library(lubridate)
-
-# July 1926 to April 2015
+library(tidyverse)
+library(glue)
 
 # ***** Import Data *****
-wd <- "C:/Users/stefa/Dropbox/Studium Master/3. Semester WS19/4350 - Thesis in Finance/"
-setwd(wd)
-FF_monthly <- read_table2('Data/F-F_Research_Data_Factors_paper_period.txt')
-FF_daily <- read_table2('Data/F-F_Research_Data_Factors_daily_paper_period.txt')
+FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
+FF_monthly <- read_csv("F-F_Research_Data_Factors.CSV", col_names = TRUE, skip = 3)
 
+FF_daily <- FF_daily %>% rename(Date = X1)
+FF_monthly <- FF_monthly %>% rename(Date = X1)
+
+# Adjust end date --> end of 2015
+# @Stefan: why April? only says "2015" in paper
+
+last_day <- 20151231
+last_month <- 201512
+
+last_entry_day <- which(FF_daily[,1] == last_day,)
+last_entry_month <- which(FF_monthly[,1] == last_month,)
+FF_daily <- head(FF_daily, last_entry_day)
+FF_monthly <- head(FF_monthly, last_entry_month)
 
 # ***** Manipulate Data *****
-FF_monthly$Mkt <- FF_monthly$`Mkt-RF` + FF_monthly$RF
-FF_daily$Mkt <- FF_daily$`Mkt-RF` + FF_daily$RF
+FF_monthly <- FF_monthly %>% mutate(Mkt = `Mkt-RF` + RF)
+FF_daily <- FF_daily %>% mutate(Mkt = `Mkt-RF` + RF)
 
-FF_daily$Date <- as.Date(as.character(FF_daily$Date), format="%Y%m%d")
-
+FF_daily$Date <- ymd(FF_daily$Date)
+FF_monthly$Date <- as.character(FF_monthly$Date)
+FF_monthly$Date <- parse_date_time(FF_monthly$Date, "ym")
 
 # ***** Calculate Monthly Variances *****
+trading_days <- 242
 monthly_vars <- FF_daily %>%
   mutate(month = month(Date), year = year(Date)) %>%
   group_by(year, month) %>%
-  summarise(variance = var(Mkt)) # tested with var*n()/22 as in paper (p.8 (2)) but result seems worse
+  summarise(variance = var(Mkt) * trading_days * count(Mkt))
 
-monthly_vars$volatility <- sqrt(monthly_vars$variance)
+monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
 plot(monthly_vars$volatility, type = "l") # Compare to Figure 2: Looks identical but numbers wrong by factor ~16
+
+# try stuff out
+monthly_vars <- monthly_vars %>% mutate(var1 = 1 / variance)
+print(quantile(monthly_vars$var1, probs = c(0.5, 0.75, 0.9, 0.99)))
+iceal_c <- 6.39 / 0.063990642 
+
+FF_monthly$Mkt_y <- FF_monthly$Mkt * 12
+c = sqrt(var(FF_monthly$Mkt[2:1074])/
+           var(1/monthly_vars$variance[1:1073]*FF_monthly$Mkt[2:1074]))
+
+weights <- c(1:1073)
+vola_managed_returns <- c(1:1073)
+for (month in 2:1074) {
+  weights[month-1] <- c/monthly_vars$variance[month-1]
+  vola_managed_returns[month-1] <- weights[month-1]*FF_monthly$Mkt[month]
+}
+returns <- data.frame(FF_monthly$Mkt[2:i], vola_managed_returns)
+
+print(var(vola_managed_returns))
+print(var(FF_monthly$Mkt[2:i]))
+print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99)))
+
+
+
 
 for (i in 1062:1074) { # Simulate for various end months
   j = i - 1
