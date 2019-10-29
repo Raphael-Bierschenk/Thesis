@@ -48,7 +48,7 @@ monthly_vars <- FF_daily %>%
 monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
 plot(monthly_vars$volatility * sqrt(trading_months), type = "l")
 
-# ******** ARIMA model**
+# ******** Scenario 1: ARIMA model**
 
 variance_ts <- xts(monthly_vars$variance, order.by = FF_monthly$Date)
 
@@ -63,7 +63,7 @@ for (i in 1:last_entry_month) {
 
 monthly_vars$ARMA_var <- ARMA_var
 
-# ***** EWMA ****
+# ***** Scenario 2: EWMA ****
 
 n <- 0.94
 EWMA_var <- c(1:last_entry_month)
@@ -76,15 +76,60 @@ for (i in 1:last_entry_month) {
 
 monthly_vars$EWMA_var <- EWMA_var
 
+# ***** 3: Var of Var****
+var_of_var_periods <- 12
+
+var_of_var <- c(1:last_entry_month)
+for (i in 1:last_entry_month) {
+  if (i <= var_of_var_periods) var_of_var[i] <- var(monthly_vars$variance[1:var_of_var_periods])
+  else var_of_var[i] <- var(monthly_vars$variance[(i-var_of_var_periods + 1):i])
+}
+
+monthly_vars$var_of_var <- var_of_var
+
+# **** 4: Vol of vol
+vol_of_vol_periods <- 12
+
+vol_of_vol <- c(1:last_entry_month)
+for (i in 1:last_entry_month) {
+  if (i <= vol_of_vol_periods) vol_of_vol[i] <- sd(monthly_vars$volatility[1:vol_of_vol_periods])
+  else vol_of_vol[i] <- sd(monthly_vars$volatility[(i-vol_of_vol_periods + 1):i])
+}
+
+monthly_vars$vol_of_vol <- vol_of_vol
+
+#*** 5: recent emphasis
+emphasized_days <- 10
+
+recent_vars <- FF_daily %>%
+  mutate(month = month(Date), year = year(Date)) %>%
+  group_by(year, month) %>%
+  summarise(variance = var(tail(Mkt, emphasized_days)) * trading_days)
+
+monthly_vars$recent_var <- recent_vars$variance
+monthly_vars <- monthly_vars %>% mutate(recent_vol = sqrt(recent_var))
+
 # ***** Calculate c *****
-c0 = sqrt(var(FF_monthly$Mkt[-1])/
+c0 <- sqrt(var(FF_monthly$Mkt[-1])/
            var(1/monthly_vars$variance[-last_entry_month]*FF_monthly$Mkt[-1]))
 
-c1 = sqrt(var(FF_monthly$Mkt[-1])/
-           var(1/monthly_vars$ARMA_var[-last_entry_month]*FF_monthly$Mkt[-1]))
+c1 <- sqrt(var(FF_monthly$Mkt[-1])/
+           var(1/monthly_vars$ARMA_var[-last_entry_month] * FF_monthly$Mkt[-1]))
 
-c2 = sqrt(var(FF_monthly$Mkt[-1])/
-            var(1/monthly_vars$EWMA_var[-last_entry_month]*FF_monthly$Mkt[-1]))
+c2 <- sqrt(var(FF_monthly$Mkt[-1])/
+            var(1/monthly_vars$EWMA_var[-last_entry_month] * FF_monthly$Mkt[-1]))
+
+c3 <- sqrt(var(FF_monthly$Mkt[-1])/
+             var(1/(monthly_vars$variance[-last_entry_month] *
+                   monthly_vars$var_of_var[-last_entry_month]) * FF_monthly$Mkt[-1]))
+
+c4 <- sqrt(var(FF_monthly$Mkt[-1])/
+             var(1/(monthly_vars$volatility[-last_entry_month] *
+                      monthly_vars$vol_of_vol[-last_entry_month]) * FF_monthly$Mkt[-1]))
+
+c5 <- sqrt(var(FF_monthly$Mkt[-1])/
+             var(1/(monthly_vars$volatility[-last_entry_month] *
+                      monthly_vars$recent_vol[-last_entry_month]) * FF_monthly$Mkt[-1]))
 
 # ***** Calculate weights and volatility managed returns *****
 weights0 <- c(1:(last_entry_month-1))
@@ -96,17 +141,34 @@ var_returns1 <- c(1:(last_entry_month-1))
 weights2 <- c(1:(last_entry_month-1))
 var_returns2 <- c(1:(last_entry_month-1))
 
+weights3 <- c(1:(last_entry_month-1))
+var_returns3 <- c(1:(last_entry_month-1))
+
+weights4 <- c(1:(last_entry_month-1))
+var_returns4 <- c(1:(last_entry_month-1))
+
+weights5 <- c(1:(last_entry_month-1))
+var_returns5 <- c(1:(last_entry_month-1))
+
 for (month in 1:(last_entry_month-1)) {
   weights0[month] <- c0/monthly_vars$variance[month]
   weights1[month] <- c1/monthly_vars$ARMA_var[month]
   weights2[month] <- c2/monthly_vars$EWMA_var[month]
+  weights3[month] <- c3/(monthly_vars$variance[month] * monthly_vars$var_of_var[month])
+  weights4[month] <- c4/(monthly_vars$volatility[month] * monthly_vars$vol_of_vol[month])
+  weights5[month] <- c5/(monthly_vars$volatility[month] * monthly_vars$recent_vol[month])
   var_returns0[month] <- weights0[month]*FF_monthly$Mkt[month+1]
   var_returns1[month] <- weights1[month]*FF_monthly$Mkt[month+1]
   var_returns2[month] <- weights2[month]*FF_monthly$Mkt[month+1]
+  var_returns3[month] <- weights3[month]*FF_monthly$Mkt[month+1]
+  var_returns4[month] <- weights4[month]*FF_monthly$Mkt[month+1]
+  var_returns5[month] <- weights5[month]*FF_monthly$Mkt[month+1]
 }
 returns <- data.frame(FF_monthly$Date[-1],FF_monthly$Mkt[-1], 
-                      var_returns0, var_returns1, var_returns2)
-colnames(returns) <- c("Date", "Mkt", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed")
+                      var_returns0, var_returns1, var_returns2, var_returns3, 
+                      var_returns4, var_returns5)
+colnames(returns) <- c("Date", "Mkt", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed",
+                       "var_of_var", "vol_of_vol", "recent_emphasize")
 
 
 # ***** Some descriptive statistics *****
@@ -114,26 +176,40 @@ print(var(returns$Mkt))
 print(var(returns$vol_managed))
 print(var(returns$ARMA_vol_managed))
 print(var(returns$EWMA_vol_managed))
+print(var(returns$var_of_var))
+print(var(returns$vol_of_vol))
+print(var(returns$recent_emphasize))
 
 print(quantile(weights0, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
 print(quantile(weights1, probs = c(0.5, 0.75, 0.9, 0.99)))
 print(quantile(weights2, probs = c(0.5, 0.75, 0.9, 0.99)))
+print(quantile(weights3, probs = c(0.5, 0.75, 0.9, 0.99)))
+print(quantile(weights4, probs = c(0.5, 0.75, 0.9, 0.99)))
+print(quantile(weights5, probs = c(0.5, 0.75, 0.9, 0.99)))
 
 # ***** Calculate performance / total returns *****
-tot_ret_Mkt = c(1:last_entry_month)
-tot_ret0 = c(1:last_entry_month)
-tot_ret1 = c(1:last_entry_month)
-tot_ret2 = c(1:last_entry_month)
+tot_ret_Mkt <- c(1:last_entry_month)
+tot_ret0 <- c(1:last_entry_month)
+tot_ret1 <- c(1:last_entry_month)
+tot_ret2 <- c(1:last_entry_month)
+tot_ret3 <- c(1:last_entry_month)
+tot_ret4 <- c(1:last_entry_month)
+tot_ret5 <- c(1:last_entry_month)
 
 for (month in 2:last_entry_month) {
-  tot_ret_Mkt[month] = tot_ret_Mkt[month - 1]*(1 + returns$Mkt[month-1]/100)
-  tot_ret0[month] = tot_ret0[month - 1]*(1 + returns$vol_managed[month - 1]/100)
-  tot_ret1[month] = tot_ret1[month - 1]*(1 + returns$ARMA_vol_managed[month - 1]/100)
-  tot_ret2[month] = tot_ret2[month - 1]*(1 + returns$EWMA_vol_managed[month - 1]/100)
+  tot_ret_Mkt[month] <- tot_ret_Mkt[month - 1]*(1 + returns$Mkt[month-1]/100)
+  tot_ret0[month] <- tot_ret0[month - 1]*(1 + returns$vol_managed[month - 1]/100)
+  tot_ret1[month] <- tot_ret1[month - 1]*(1 + returns$ARMA_vol_managed[month - 1]/100)
+  tot_ret2[month] <- tot_ret2[month - 1]*(1 + returns$EWMA_vol_managed[month - 1]/100)
+  tot_ret3[month] <- tot_ret3[month - 1]*(1 + returns$var_of_var[month - 1]/100)
+  tot_ret4[month] <- tot_ret4[month - 1]*(1 + returns$vol_of_vol[month - 1]/100)
+  tot_ret5[month] <- tot_ret5[month - 1]*(1 + returns$recent_emphasize[month - 1]/100)
 }
 
-performance <- data.frame(FF_monthly$Date, tot_ret_Mkt, tot_ret0, tot_ret1, tot_ret2)
-colnames(performance) <- c("Date", "Mkt", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed")
+performance <- data.frame(FF_monthly$Date, tot_ret_Mkt, tot_ret0, tot_ret1, 
+                          tot_ret2, tot_ret3, tot_ret4, tot_ret5)
+colnames(performance) <- c("Date", "Mkt", "vol_managed", "ARMA_vol_managed", 
+                           "EWMA_vol_managed", "var_of_var", "vol_of_vol", "recent_emphasize")
 performance[last_entry_month,]
 
 # ***** Plot market and VM returns on log scale *****
@@ -147,6 +223,9 @@ ggplot(performance, aes(months)) +
   geom_line(aes(y=vol_managed)) +
   geom_line(aes(y=ARMA_vol_managed)) +
   geom_line(aes(y=EWMA_vol_managed)) +
+  geom_line(aes(y=var_of_var)) +
+  geom_line(aes(y=vol_of_vol)) +
+  geom_line(aes(y=recent_emphasize)) +
   scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
                expand = c(0,0),
                breaks = dates,
