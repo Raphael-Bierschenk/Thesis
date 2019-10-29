@@ -43,25 +43,37 @@ trading_months <- 12
 monthly_vars <- FF_daily %>%
   mutate(month = month(Date), year = year(Date)) %>%
   group_by(year, month) %>%
-  summarise(variance = var(Mkt) * trading_days)
+  summarise(variance = var(`Mkt-RF`) * 21)
 
 monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
 plot(monthly_vars$volatility * sqrt(trading_months), type = "l")
 
-# ******** Scenario 1: ARIMA model**
+# ******** Scenario 2: ARIMA model**
 
 variance_ts <- xts(monthly_vars$variance, order.by = FF_monthly$Date)
+min_obs <- 12
+max_obs <- 100
+model <- vector(mode = "list", length = last_entry_month - min_obs)
 
 monthly_vars$ARMA_var <- c(1:last_entry_month)
 for (i in 1:last_entry_month) {
-  if (i <= 12) monthly_vars$ARMA_var[i] <- variance_ts[i]
+  if (i <= min_obs) monthly_vars$ARMA_var[i] <- variance_ts[i]
   else {
-    model <- auto.arima(variance_ts[1:i], d = 0)
-    monthly_vars$ARMA_var[i] <- as.numeric(forecast(model, h = 1)$mean)
+    model[[i-min_obs]] <- auto.arima(variance_ts[max(1,(i-max_obs)):i], d = 0)
+    monthly_vars$ARMA_var[i] <- as.numeric(forecast(model[[i-min_obs]], h = 1)$mean)
   }
 }
 
-# ***** Scenario 2: EWMA ****
+p <- vector(length = last_entry_month - min_obs)
+q <- vector(length = last_entry_month - min_obs)
+for (i in 1:(last_entry_month - min_obs)) {
+  p[i] <- arimaorder(model[[i]])[1]
+  q[i] <- arimaorder(model[[i]])[3]
+}
+plot(p, type = "l")
+plot(q, type = "l")
+
+# ***** Scenario 3: EWMA ****
 
 n <- 0.94
 monthly_vars$EWMA_var <- c(1:last_entry_month)
@@ -73,7 +85,7 @@ for (i in 1:last_entry_month) {
   }
 }
 
-# ***** 3: Var of Var****
+# ***** 4: Var of Var****
 var_of_var_periods <- 12
 
 monthly_vars$var_of_var <- c(1:last_entry_month)
@@ -88,7 +100,7 @@ for (i in 1:last_entry_month) {
   }
 }
 
-# **** 4: Vol of vol
+# **** 5: Vol of vol
 vol_of_vol_periods <- 12
 
 monthly_vars$vol_of_vol <- c(1:last_entry_month)
@@ -101,7 +113,7 @@ for (i in 1:last_entry_month) {
   }
 }
 
-#*** 5: recent emphasis
+#*** 6: recent emphasis
 emphasized_days <- 10
 
 recent_vars <- FF_daily %>%
@@ -113,21 +125,22 @@ monthly_vars$recent_var <- recent_vars$variance
 monthly_vars <- monthly_vars %>% mutate(recent_vol = sqrt(recent_var))
 
 # initiate strategy name vector
-names <- c("vol_managed", "ARMA_vol_managed", "EWMA_vol_managed", "var_of_var",
-           "vol_of_vol", "recent_emphasize")
+names <- c("var_managed", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed", 
+           "var_of_var", "vol_of_vol", "recent_emphasize")
 
 # decide denominator
 denom <- data.frame(matrix(ncol = length(names), nrow = last_entry_month - 1))
 colnames(denom) <- names
 
 denom[,1] <- monthly_vars$variance[-last_entry_month]
-denom[,2] <- monthly_vars$ARMA_var[-last_entry_month]
-denom[,3] <- monthly_vars$EWMA_var[-last_entry_month]
-denom[,4] <- monthly_vars$variance[-last_entry_month] * 
+denom[,2] <- monthly_vars$volatility[-last_entry_month]
+denom[,3] <- monthly_vars$ARMA_var[-last_entry_month]
+denom[,4] <- monthly_vars$EWMA_var[-last_entry_month]
+denom[,5] <- monthly_vars$variance[-last_entry_month] * 
   monthly_vars$var_of_var[-last_entry_month]
-denom[,5] <- monthly_vars$volatility[-last_entry_month] * 
+denom[,6] <- monthly_vars$volatility[-last_entry_month] * 
   monthly_vars$vol_of_vol[-last_entry_month]
-denom[,6] <- monthly_vars$volatility[-last_entry_month] *
+denom[,7] <- monthly_vars$volatility[-last_entry_month] *
   monthly_vars$recent_vol[-last_entry_month]
 
 # ***** Calculate c *****
@@ -135,26 +148,28 @@ c <- data.frame(matrix(ncol = length(names)))
 colnames(c) <- names
 
 for (i in 1:length(names)) {
-  c[i] <- sqrt(var(FF_monthly$Mkt[-1]) / var(FF_monthly$Mkt[-1] / denom[,i]))
+  c[i] <- sqrt(var(FF_monthly$`Mkt-RF`[-1]) / var(FF_monthly$`Mkt-RF`[-1] / denom[,i]))
 }
 
 # ***** Calculate weights and volatility managed returns *****
 weights <- data.frame(matrix(ncol = length(names), nrow = last_entry_month - 1))
 colnames(weights) <- names
 
-returns <- data.frame(matrix(ncol = length(names) + 2, nrow = last_entry_month - 1))
-colnames(returns) <- c("Date", "Mkt", names)
-returns <- returns %>% mutate(Date = FF_monthly$Date[-1], Mkt = FF_monthly$Mkt[-1])
+returns <- data.frame(matrix(ncol = length(names) + 3, nrow = last_entry_month - 1))
+colnames(returns) <- c("Date", "Mkt", "rf", names)
+returns <- returns %>% mutate(Date = FF_monthly$Date[-1], Mkt = FF_monthly$Mkt[-1], 
+                              rf = FF_monthly$RF[-1])
 
 for (month in 1:(last_entry_month-1)) {
   for (j in 1:length(names)) {
     weights[month,j] <- c[1,j] / denom[month,j]
-    returns[month,names[j]] <- weights[month, j] * returns$Mkt[month]
+    returns[month,names[j]] <- weights[month, j] * (returns$Mkt[month] - returns$rf[month]) +
+      returns$rf[month]
   }
 }
 
 # ***** Some descriptive statistics *****
-print(apply(returns[,-1], 2, var))
+print(apply(returns[,-c(1,3)], 2, var))
 print(apply(weights, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99)))
 # paper: 0.93 1.59 2.64 6.39
 
@@ -166,10 +181,11 @@ tot_ret <- tot_ret %>% mutate(Date = FF_monthly$Date)
 tot_ret[1,-1] <- 1
 
 for (month in 2:last_entry_month) {
-  tot_ret$Mkt[month] <- tot_ret$Mkt[month-1] * (1 + returns$Mkt[month-1]/100)
+  tot_ret$Mkt[month] <- tot_ret$Mkt[month-1] * 
+    (1 + (returns$Mkt[month-1]/100))
   for (j in 1:length(names)) {
     tot_ret[month,names[j]] <- tot_ret[month-1, names[j]] * 
-      (1 + returns[month-1, names[j]]/100)
+      (1 + (returns[month-1, names[j]]/100))
   }
 }
 
@@ -181,9 +197,9 @@ scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,
            200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
            20000,30000,40000,50000,60000,70000,80000,90000,100000)
 dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
-ggplot(performance, aes(months)) +
+ggplot(tot_ret, aes(months)) +
   geom_line(aes(y=Mkt)) +
-  geom_line(aes(y=vol_managed)) +
+  geom_line(aes(y=var_managed)) +
   geom_line(aes(y=ARMA_vol_managed)) +
   geom_line(aes(y=EWMA_vol_managed)) +
   geom_line(aes(y=var_of_var)) +
@@ -202,11 +218,22 @@ ggplot(performance, aes(months)) +
                      expand = c(0,0)) +
   ggtitle("Cumulative Performance") + xlab("") + ylab("")
 
+# regressions
+a <- 12 * (returns$var_managed - returns$rf)
+b <- 12 * (returns$Mkt - returns$rf)
+lm(a ~ b)
 
-# ***** Perform regressions to obtain alpha *****
-reg <- lm(returns$vol_managed ~ returns$Mkt)
-reg2 <- lm(returns$vol_managed ~ FF_monthly$Mkt[2:1066] + 
-             FF_monthly$SMB[2:1066] + FF_monthly$HML[2:1066])
-print(alpha <- reg$coefficients[1]*12) # paper: 4.86
-print(alpha <- reg2$coefficients[1]*12) # paper: 5.45
+a1 <- 12 * (returns$vol_managed - returns$rf)
+a2 <- 12 * (returns$ARMA_vol_managed - returns$rf)
+a3 <- 12 * (returns$EWMA_vol_managed - returns$rf)
+a4 <- 12 * (returns$var_of_var - returns$rf)
+a5 <- 12 * (returns$vol_of_vol - returns$rf)
+a6 <- 12 * (returns$recent_emphasize - returns$rf)
 
+lm(a~b)
+lm(a1~b)
+lm(a2~b)
+lm(a3~b)
+lm(a4~b)
+lm(a5~b)
+lm(a6~b)
