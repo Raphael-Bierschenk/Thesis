@@ -48,7 +48,7 @@ monthly_vars <- FF_daily %>%
 monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
 plot(monthly_vars$volatility * sqrt(trading_months), type = "l")
 
-# ******** ARIMA model**
+# ******** Scenario 1: ARIMA model**
 
 variance_ts <- xts(monthly_vars$variance, order.by = FF_monthly$Date)
 
@@ -63,7 +63,7 @@ for (i in 1:last_entry_month) {
 
 monthly_vars$ARMA_var <- ARMA_var
 
-# ***** EWMA ****
+# ***** Scenario 2: EWMA ****
 
 n <- 0.94
 EWMA_var <- c(1:last_entry_month)
