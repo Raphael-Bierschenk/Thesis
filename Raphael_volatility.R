@@ -154,6 +154,7 @@ for (i in 1:length(names)) {
 a_qe <- c(1:length(names))
 b_qe <- c(1:length(names))
 c_qe <- c(1:length(names))
+
 for (i in 1:length(names)) {
   # determine a,b,c of midnight formula
   a_qe[i] <- var(FF_monthly$`Mkt-RF`[-1]/denom[,i])
@@ -165,46 +166,48 @@ for (i in 1:length(names)) {
 }
 
 
+
+
+
 #************************************************************************************************************
 # new c test (2 solutions due to quadratic equation)
-c1 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
-  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])+
-     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
-            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
-            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
-c2 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
-  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])-
-     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
-            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
-            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
-
-weights <- c(1:1065)
-vola_managed_returns <- c(1:1065)
-
-for (month in 2:1066) {
-  weights[month-1] <- c1/monthly_vars$variance[month-1]
-  vola_managed_returns[month-1] <- weights[month-1]*(FF_monthly$Mkt[month]-FF_monthly$RF[month])+FF_monthly$RF[month]
-}
-returns <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns)
-colnames(returns) <- c("Market Returns", "Vola Managed Returns")
-
-
-print(var(vola_managed_returns))
-print(var(FF_monthly$Mkt[2:1066]))
-print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
-
-tot_ret = c(1:1066)
-tot_ret_VM = c(1:1066)
-
-for (month in 2:1066) {
-  tot_ret[month] = tot_ret[month - 1]*(1 + FF_monthly$Mkt[month]/100)
-  tot_ret_VM[month] = tot_ret_VM[month - 1]*(1 + vola_managed_returns[month - 1]/100)
-}
-tot_ret[1066]
-tot_ret_VM[1066]
-
+#c1 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
+#  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])+
+#     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
+#            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
+#            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
+#c2 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
+#  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])-
+#     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
+#            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
+#            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
+# 
+# weights <- c(1:1065)
+# vola_managed_returns <- c(1:1065)
+# 
+# for (month in 2:1066) {
+#   weights[month-1] <- c1/monthly_vars$variance[month-1]
+#   vola_managed_returns[month-1] <- weights[month-1]*(FF_monthly$Mkt[month]-FF_monthly$RF[month])+FF_monthly$RF[month]
+# }
+# returns <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns)
+# colnames(returns) <- c("Market Returns", "Vola Managed Returns")
+# 
+# 
+# print(var(vola_managed_returns))
+# print(var(FF_monthly$Mkt[2:1066]))
+# print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
+# 
+# tot_ret = c(1:1066)
+# tot_ret_VM = c(1:1066)
+# 
+# for (month in 2:1066) {
+#   tot_ret[month] = tot_ret[month - 1]*(1 + FF_monthly$Mkt[month]/100)
+#   tot_ret_VM[month] = tot_ret_VM[month - 1]*(1 + vola_managed_returns[month - 1]/100)
+# }
+# tot_ret[1066]
+# tot_ret_VM[1066]
+# 
 #********************************************************************************************
-
 
 
 
@@ -230,7 +233,7 @@ for (month in 1:(last_entry_month-1)) {
 # ***** Some descriptive statistics *****
 print(apply(returns[,-c(1,3)], 2, var))
 print(apply(weights, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99)))
-# paper: 0.93 1.59 2.64 6.39
+# paper: 0.93 1.59 2.64 6.39 for var managed
 
 # ***** Calculate performance / total returns *****
 tot_ret <- data.frame(matrix(ncol = length(names) + 2, nrow = last_entry_month))
@@ -278,21 +281,37 @@ ggplot(tot_ret, aes(months)) +
   ggtitle("Cumulative Performance") + xlab("") + ylab("")
 
 # regressions
-a <- 12 * (returns$var_managed - returns$rf)
+reg_mkt <- vector(mode = "list", length = length(names))
+reg_FF3 <- vector(mode = "list", length = length(names))
 b <- 12 * (returns$Mkt - returns$rf)
-summary(lm(a ~ b))
+b1 <- 12 * (FF_monthly$SMB[-1])
+b2 <- 12 * (FF_monthly$HML[-1])
 
-a1 <- 12 * (returns$vol_managed - returns$rf)
-a2 <- 12 * (returns$ARMA_vol_managed - returns$rf)
-a3 <- 12 * (returns$EWMA_vol_managed - returns$rf)
-a4 <- 12 * (returns$var_of_var - returns$rf)
-a5 <- 12 * (returns$vol_of_vol - returns$rf)
-a6 <- 12 * (returns$recent_emphasize - returns$rf)
+for (i in 1:length(names)) {
+  a <- 12 * (returns[, names[i]] - returns$rf)
+  reg_mkt[[i]] <- lm(a ~ b)
+}
 
-lm(a~b)
-lm(a1~b)
-lm(a2~b)
-lm(a3~b)
-lm(a4~b)
-lm(a5~b)
-lm(a6~b)
+for (i in 1:length(names)) {
+  a <- 12 * (returns[, names[i]] - returns$rf)
+  reg_FF3[[i]] <- lm(a ~ b + b1 + b2)
+}
+
+
+output_names <- c("alpha_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
+reg_output <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
+colnames(reg_output) <- names
+rownames(reg_output) <- output_names
+
+for (i in 1:length(names)) {
+  reg_output["alpha_mkt", i] <- reg_mkt[[i]]$coefficients[1]
+  reg_output["R^2_mkt", i] <- summary(reg_mkt[[i]])$r.squared
+  reg_output["RMSE", i] <- sigma(reg_mkt[[i]])
+  reg_output["SR", i] <- 12 * (mean(returns[,names[i]] - returns$rf)) / 
+    (sqrt(trading_months) * sd(returns[,names[i]]))
+  reg_output["Appr_Ratio", i] <- sqrt(trading_months) * reg_output["alpha_mkt", i] /
+    reg_output["RMSE", i]
+  reg_output["alpha_FF3", i] <- reg_FF3[[i]]$coefficients[1]
+}
+
+round(reg_output, 2)
