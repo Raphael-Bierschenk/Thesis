@@ -55,14 +55,14 @@ for (i in 2:nrow(FF_daily)) {
 plot(FF_daily$EWMA_vars, type = "l")
 
 
-trading_days <- 250
+trading_days <- 22
 monthly_vars_EWMA <- FF_daily %>%
   mutate(month = month(Date), year = year(Date)) %>%
   group_by(year, month) %>%
-  summarise(variance = mean(EWMA_vars) * trading_days * 10000)
+  summarise(variance = tail(EWMA_vars,1) * trading_days * 10000)
 
 monthly_vars_EWMA <- monthly_vars_EWMA %>% mutate(volatility = sqrt(variance))
-plot(monthly_vars_EWMA$volatility, type = "l")
+plot(monthly_vars_EWMA$volatility*sqrt(12), type = "l")
 
 c_EWMA = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_EWMA$variance[1:1065]*FF_monthly$Mkt[2:1066]))
 
@@ -139,14 +139,14 @@ for (i in 2:nrow(FF_daily)) {
 plot(FF_daily$GARCH_vars, type = "l")
 
 
-trading_days <- 250
+trading_days <- 22
 monthly_vars_GARCH <- FF_daily %>%
   mutate(month = month(Date), year = year(Date)) %>%
   group_by(year, month) %>%
-  summarise(variance = mean(GARCH_vars) * trading_days * 10000)
+  summarise(variance = tail(GARCH_vars,1) * trading_days * 10000)
 
 monthly_vars_GARCH <- monthly_vars_GARCH %>% mutate(volatility = sqrt(variance))
-plot(monthly_vars_GARCH$volatility, type = "l")
+plot(monthly_vars_GARCH$volatility*sqrt(12), type = "l")
 
 c_GARCH = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_GARCH$variance[1:1065]*FF_monthly$Mkt[2:1066]))
 
@@ -224,70 +224,86 @@ plot(monthly_vars$volatility, type = "l")
 
 
 # Default + EWMA + GARCH
-FF_monthly$MktVUp <- c(1:nrow(FF_monthly)-1)
-FF_monthly$MktVUpEWMA <- c(1:nrow(FF_monthly)-1)
-FF_monthly$MktVUpGARCH <- c(1:nrow(FF_monthly)-1)
+FF_daily$MktVUpUSQ <- c(1:nrow(FF_daily)-1)
+FF_daily$MktVUpEWMA <- c(1:nrow(FF_daily)-1)
+FF_daily$MktVUpGARCH <- c(1:nrow(FF_daily)-1)
 
-for (i in 2:nrow(FF_monthly)) {
-  FF_monthly$MktVUp[i] <- FF_monthly$Mkt[i]*
-    sqrt(monthly_vars$variance[nrow(FF_monthly)-1]/monthly_vars$variance[i-1])
-  FF_monthly$MktVUpEWMA[i] <- FF_monthly$Mkt[i]*
-    sqrt(monthly_vars_EWMA$variance[nrow(FF_monthly)-1]/monthly_vars_EWMA$variance[i-1])
-  FF_monthly$MktVUpGARCH[i] <- FF_monthly$Mkt[i]*
-    sqrt(monthly_vars_GARCH$variance[nrow(FF_monthly)-1]/monthly_vars_GARCH$variance[i-1])
+for (i in 1:nrow(FF_daily)) {
+  FF_daily$MktVUpUSQ[i] <- FF_daily$Mkt[i]*
+    sqrt(FF_daily$u_sq[nrow(FF_daily)]/FF_daily$u_sq[i])
+  FF_daily$MktVUpEWMA[i] <- FF_daily$Mkt[i]*
+    sqrt(FF_daily$EWMA_vars[nrow(FF_daily)]/FF_daily$EWMA_vars[i])
+  FF_daily$MktVUpGARCH[i] <- FF_daily$Mkt[i]*
+    sqrt(FF_daily$GARCH_vars[nrow(FF_daily)]/FF_daily$GARCH_vars[i])
 }
+FF_daily[is.na(FF_daily)] <- 0 # replace NaN by 0
+
+trading_days <- 22
+monthly_vars_VUp_u_sq <- FF_daily %>%
+  mutate(month = month(Date), year = year(Date)) %>%
+  group_by(year, month) %>%
+  summarise(variance = var(MktVUpUSQ) * trading_days)
+monthly_vars_VUp_EWMA <- FF_daily %>%
+  mutate(month = month(Date), year = year(Date)) %>%
+  group_by(year, month) %>%
+  summarise(variance = var(MktVUpEWMA) * trading_days)
+monthly_vars_VUp_GARCH <- FF_daily %>%
+  mutate(month = month(Date), year = year(Date)) %>%
+  group_by(year, month) %>%
+  summarise(variance = var(MktVUpGARCH) * trading_days)
+
 
 # ***** Calculate c *****
-c_VUp = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars$variance[1:1065]*FF_monthly$Mkt[2:1066]))
-c_VUp_EWMA = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_EWMA$variance[1:1065]*FF_monthly$Mkt[2:1066]))
-c_VUp_GARCH = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_GARCH$variance[1:1065]*FF_monthly$Mkt[2:1066]))
+c_VUp_USQ = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_VUp_u_sq$variance[1:1065]*FF_monthly$Mkt[2:1066]))
+c_VUp_EWMA = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_VUp_EWMA$variance[1:1065]*FF_monthly$Mkt[2:1066]))
+c_VUp_GARCH = sqrt(var(FF_monthly$Mkt[2:1066])/var(1/monthly_vars_VUp_GARCH$variance[1:1065]*FF_monthly$Mkt[2:1066]))
 
 
 # ***** Calculate weights and volatility managed returns *****
-weights_VUp <- c(1:1065)
+weights_VUp_USQ <- c(1:1065)
 weights_VUp_EWMA <- c(1:1065)
 weights_VUp_GARCH <- c(1:1065)
-vola_managed_returns_VUp <- c(1:1065)
+vola_managed_returns_VUp_USQ <- c(1:1065)
 vola_managed_returns_VUp_EWMA <- c(1:1065)
 vola_managed_returns_VUp_GARCH <- c(1:1065)
 
 for (month in 2:1066) {
-  weights_VUp[month-1] <- c_VUp/monthly_vars$variance[month-1]
-  weights_VUp_EWMA[month-1] <- c_VUp_EWMA/monthly_vars_EWMA$variance[month-1]
-  weights_VUp_GARCH[month-1] <- c_VUp_GARCH/monthly_vars_GARCH$variance[month-1]
-  vola_managed_returns_VUp[month-1] <- weights_VUp[month-1]*FF_monthly$Mkt[month]
+  weights_VUp_USQ[month-1] <- c_VUp_USQ/monthly_vars_VUp_u_sq$variance[month-1]
+  weights_VUp_EWMA[month-1] <- c_VUp_EWMA/monthly_vars_VUp_EWMA$variance[month-1]
+  weights_VUp_GARCH[month-1] <- c_VUp_GARCH/monthly_vars_VUp_GARCH$variance[month-1]
+  vola_managed_returns_VUp_USQ[month-1] <- weights_VUp_USQ[month-1]*FF_monthly$Mkt[month]
   vola_managed_returns_VUp_EWMA[month-1] <- weights_VUp_EWMA[month-1]*FF_monthly$Mkt[month]
   vola_managed_returns_VUp_GARCH[month-1] <- weights_VUp_GARCH[month-1]*FF_monthly$Mkt[month]
 }
-returns_VUp <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns_VUp, vola_managed_returns_VUp_EWMA, vola_managed_returns_VUp_GARCH)
+returns_VUp <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns_VUp_USQ, vola_managed_returns_VUp_EWMA, vola_managed_returns_VUp_GARCH)
 colnames(returns_VUp) <- c("Market Returns", "VM Returns VUp", "VM Returns VUp + EWMA", "VM Returns VUp + GARCH")
 
 
 # ***** Some descriptive statistics *****
 print(var(FF_monthly$Mkt[2:1066]))
-print(var(vola_managed_returns_VUp))
+print(var(vola_managed_returns_VUp_USQ))
 print(var(vola_managed_returns_VUp_EWMA))
 print(var(vola_managed_returns_VUp_GARCH))
-print(quantile(weights_VUp, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
+print(quantile(weights_VUp_USQ, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
 print(quantile(weights_VUp_EWMA, probs = c(0.5, 0.75, 0.9, 0.99)))
 print(quantile(weights_VUp_GARCH, probs = c(0.5, 0.75, 0.9, 0.99)))
 
 
 # ***** Calculate performance / total returns *****
 tot_ret = c(1:1066)
-tot_ret_VM_VUp = c(1:1066)
+tot_ret_VM_VUp_USQ = c(1:1066)
 tot_ret_VM_VUp_EWMA = c(1:1066)
 tot_ret_VM_VUp_GARCH = c(1:1066)
 
 for (month in 2:1066) {
   tot_ret[month] = tot_ret[month - 1]*(1 + FF_monthly$Mkt[month]/100)
-  tot_ret_VM_VUp[month] = tot_ret_VM_VUp[month - 1]*(1 + vola_managed_returns_VUp[month - 1]/100)
+  tot_ret_VM_VUp_USQ[month] = tot_ret_VM_VUp_USQ[month - 1]*(1 + vola_managed_returns_VUp_USQ[month - 1]/100)
   tot_ret_VM_VUp_EWMA[month] = tot_ret_VM_VUp_EWMA[month - 1]*(1 + vola_managed_returns_VUp_EWMA[month - 1]/100)
   tot_ret_VM_VUp_GARCH[month] = tot_ret_VM_VUp_GARCH[month - 1]*(1 + vola_managed_returns_VUp_GARCH[month - 1]/100)
 }
 
 months <- seq(as.Date("1926/7/1"), as.Date("2015/4/1"), by = "month")
-performance_VUp <- data.frame(months, tot_ret, tot_ret_VM_VUp, tot_ret_VM_VUp_EWMA, tot_ret_VM_VUp_GARCH)
+performance_VUp <- data.frame(months, tot_ret, tot_ret_VM_VUp_USQ, tot_ret_VM_VUp_EWMA, tot_ret_VM_VUp_GARCH)
 performance_VUp[last_entry_month,]
 
 
@@ -298,7 +314,7 @@ scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,
 dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
 ggplot(performance, aes(months)) +
   geom_line(aes(y=tot_ret)) +
-  geom_line(aes(y=tot_ret_VM_VUp)) +
+  geom_line(aes(y=tot_ret_VM_VUp_USQ)) +
   geom_line(aes(y=tot_ret_VM_VUp_EWMA)) +
   geom_line(aes(y=tot_ret_VM_VUp_GARCH)) +
   scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
@@ -315,7 +331,9 @@ ggplot(performance, aes(months)) +
   ggtitle("Cumulative Performance") + xlab("") + ylab("")
 
 
-
+lm(vola_managed_returns_VUp_USQ ~ FF_monthly$Mkt[2:1066])$coefficients[1]*12
+lm(vola_managed_returns_VUp_EWMA ~ FF_monthly$Mkt[2:1066])$coefficients[1]*12
+lm(vola_managed_returns_VUp_GARCH ~ FF_monthly$Mkt[2:1066])$coefficients[1]*12
 
 
 
