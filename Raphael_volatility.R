@@ -156,8 +156,8 @@ b_qe <- c(1:length(names))
 c_qe <- c(1:length(names))
 for (i in 1:length(names)) {
   # determine a,b,c of midnight formula
-  a_qe[i] <- var(FF_monthly$`Mkt-RF`[-1]/monthly_vars[-last_entry_month,i+2])
-  b_qe[i] <- 2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars[-last_entry_month,i+2], FF_monthly$RF[-1])
+  a_qe[i] <- var(FF_monthly$`Mkt-RF`[-1]/denom[,i])
+  b_qe[i] <- 2*cov(FF_monthly$`Mkt-RF`[-1]/denom[,i], FF_monthly$RF[-1])
   c_qe[i] <- var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1])
   
   # apply midnight formula (we always take the x1 solution)
@@ -280,7 +280,7 @@ ggplot(tot_ret, aes(months)) +
 # regressions
 a <- 12 * (returns$var_managed - returns$rf)
 b <- 12 * (returns$Mkt - returns$rf)
-lm(a ~ b)
+summary(lm(a ~ b))
 
 a1 <- 12 * (returns$vol_managed - returns$rf)
 a2 <- 12 * (returns$ARMA_vol_managed - returns$rf)
