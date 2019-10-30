@@ -147,6 +147,24 @@ denom[,7] <- monthly_vars$volatility[-last_entry_month] *
 c <- data.frame(matrix(ncol = length(names)))
 colnames(c) <- names
 
+for (i in 1:length(names)) {
+  c[i] <- sqrt(var(FF_monthly$`Mkt-RF`[-1]) / var(FF_monthly$`Mkt-RF`[-1] / denom[,i]))
+}
+
+a_qe <- c(1:length(names))
+b_qe <- c(1:length(names))
+c_qe <- c(1:length(names))
+for (i in 1:length(names)) {
+  # determine a,b,c of midnight formula
+  a_qe[i] <- var(FF_monthly$`Mkt-RF`[-1]/monthly_vars[-last_entry_month,i+2])
+  b_qe[i] <- 2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars[-last_entry_month,i+2], FF_monthly$RF[-1])
+  c_qe[i] <- var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1])
+  
+  # apply midnight formula (we always take the x1 solution)
+  c[i] <- 1/(2*a_qe[i])*(-b_qe[i]+sqrt((b_qe[i])^2-4*a_qe[i]*c_qe[i]))
+}
+
+
 #************************************************************************************************************
 # new c test (2 solutions due to quadratic equation)
 c1 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
@@ -190,9 +208,7 @@ tot_ret_VM[1066]
 
 
 
-for (i in 1:length(names)) {
-  c[i] <- sqrt(var(FF_monthly$`Mkt-RF`[-1]) / var(FF_monthly$`Mkt-RF`[-1] / denom[,i]))
-}
+
 
 # ***** Calculate weights and volatility managed returns *****
 weights <- data.frame(matrix(ncol = length(names), nrow = last_entry_month - 1))
