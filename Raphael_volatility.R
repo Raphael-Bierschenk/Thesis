@@ -147,6 +147,49 @@ denom[,7] <- monthly_vars$volatility[-last_entry_month] *
 c <- data.frame(matrix(ncol = length(names)))
 colnames(c) <- names
 
+#************************************************************************************************************
+# new c test (2 solutions due to quadratic equation)
+c1 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
+  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])+
+     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
+            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
+            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
+c2 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
+  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])-
+     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
+            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
+            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
+
+weights <- c(1:1065)
+vola_managed_returns <- c(1:1065)
+
+for (month in 2:1066) {
+  weights[month-1] <- c1/monthly_vars$variance[month-1]
+  vola_managed_returns[month-1] <- weights[month-1]*(FF_monthly$Mkt[month]-FF_monthly$RF[month])+FF_monthly$RF[month]
+}
+returns <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns)
+colnames(returns) <- c("Market Returns", "Vola Managed Returns")
+
+
+print(var(vola_managed_returns))
+print(var(FF_monthly$Mkt[2:1066]))
+print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
+
+tot_ret = c(1:1066)
+tot_ret_VM = c(1:1066)
+
+for (month in 2:1066) {
+  tot_ret[month] = tot_ret[month - 1]*(1 + FF_monthly$Mkt[month]/100)
+  tot_ret_VM[month] = tot_ret_VM[month - 1]*(1 + vola_managed_returns[month - 1]/100)
+}
+tot_ret[1066]
+tot_ret_VM[1066]
+
+#********************************************************************************************
+
+
+
+
 for (i in 1:length(names)) {
   c[i] <- sqrt(var(FF_monthly$`Mkt-RF`[-1]) / var(FF_monthly$`Mkt-RF`[-1] / denom[,i]))
 }
