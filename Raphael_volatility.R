@@ -114,7 +114,7 @@ for (i in 1:last_entry_month) {
 }
 
 #*** 6: recent emphasis
-emphasized_days <- 10
+emphasized_days <- 5
 
 recent_vars <- FF_daily %>%
   mutate(month = month(Date), year = year(Date)) %>%
@@ -124,9 +124,46 @@ recent_vars <- FF_daily %>%
 monthly_vars$recent_var <- recent_vars$variance
 monthly_vars <- monthly_vars %>% mutate(recent_vol = sqrt(recent_var))
 
+# **** additional daily vol of vol factor
+monthly_vars$vol_of_vol_d <- c(1:last_entry_month)
+j <- 1
+
+for (i in 2:last_entry_day) {
+  if (month(FF_daily$Date[i]) != month(FF_daily$Date[i-1])) {
+    vol_1 <- sd(FF_daily$`Mkt-RF`[(i - 5):(i - 1)])
+    vol_2 <- sd(FF_daily$`Mkt-RF`[(i - 10):(i - 6)])
+    vol_3 <- sd(FF_daily$`Mkt-RF`[(i - 15):(i - 11)])
+    vol_4 <- sd(FF_daily$`Mkt-RF`[(i - 20):(i - 16)])
+    monthly_vars$vol_of_vol_d[j] <- sd(c(vol_1, vol_2, vol_3, vol_4))
+    j <- j + 1
+  }
+  else if (i == last_entry_day) {
+    vol_1 <- sd(FF_daily$`Mkt-RF`[(i - 4):i])
+    vol_2 <- sd(FF_daily$`Mkt-RF`[(i - 9):(i - 5)])
+    vol_3 <- sd(FF_daily$`Mkt-RF`[(i - 14):(i - 10)])
+    vol_4 <- sd(FF_daily$`Mkt-RF`[(i - 19):(i - 15)])
+    monthly_vars$vol_of_vol_d[j] <- sd(c(vol_1, vol_2, vol_3, vol_4))
+  }
+  else {}
+}
+
+vol_of_vol_weight <- 1.2
+
+vol_of_vol_factor <- c(1:last_entry_month)
+for (i in 1:last_entry_month) {
+  if (i <= vol_of_vol_periods) vol_of_vol_factor[i] <- 1
+  else {
+    if (monthly_vars$vol_of_vol_d[i] <= 
+        mean(monthly_vars$vol_of_vol_d[(i - vol_of_vol_periods + 1):i])) {
+      vol_of_vol_factor[i] <- vol_of_vol_weight
+    }
+    else {vol_of_vol_factor[i] <- 2 - vol_of_vol_weight}
+  }
+}
+
 # initiate strategy name vector
 names <- c("var_managed", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed", 
-           "var_of_var", "vol_of_vol", "recent_emphasize")
+           "var_of_var", "vol_of_vol", "recent_emphasize", "vol_of_vol_d", "test", "test1")
 
 # decide denominator
 denom <- data.frame(matrix(ncol = length(names), nrow = last_entry_month - 1))
@@ -142,6 +179,12 @@ denom[,6] <- monthly_vars$volatility[-last_entry_month] *
   monthly_vars$vol_of_vol[-last_entry_month]
 denom[,7] <- monthly_vars$volatility[-last_entry_month] *
   monthly_vars$recent_vol[-last_entry_month]
+denom[,8] <- monthly_vars$variance[-last_entry_month] *
+  vol_of_vol_factor[-last_entry_month]
+denom[,9] <- monthly_vars$variance[-last_entry_month] / 
+  monthly_vars$vol_of_vol_d[-last_entry_month]
+denom[,10] <- monthly_vars$recent_var[-last_entry_month]
+
 
 # ***** Calculate c *****
 c <- data.frame(matrix(ncol = length(names)))
