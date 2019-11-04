@@ -45,6 +45,149 @@ for (i in 2:as.integer(count(VIX_daily))) {
   }
 }
 
+# ***** Volatility Estimating *****
+FF_daily$u <- log(1+FF_daily$Mkt/100)
+FF_daily$u_sq <- FF_daily$u^2
+plot(FF_daily$u, type = "l")
+mean(FF_daily$u) # mean of log changes basically zero as required
+
+# ***** Volatility Estimating - EWMA *****
+lambda = 0.94
+FF_daily$EWMA_vars <- c(1:nrow(FF_daily))
+FF_daily$EWMA_vars[1] <- FF_daily$u_sq[1]
+for (i in 2:nrow(FF_daily)) {
+  FF_daily$EWMA_vars[i] <- lambda*FF_daily$EWMA_vars[i-1]+(1-lambda)*FF_daily$u_sq[i]
+}
+
+# ***** Volatility Estimating - GARCH *****
+omega = 0.000001
+alpha = 0.074715
+beta = 0.9175
+FF_daily$GARCH_vars <- c(1:nrow(FF_daily))
+FF_daily$GARCH_vars[1] <- FF_daily$u_sq[1]
+for (i in 2:nrow(FF_daily)) {
+  FF_daily$GARCH_vars[i] <- omega+alpha*FF_daily$u_sq[i]+beta*FF_daily$GARCH_vars[i-1]
+}
+
+test = 1
+for (i in c(1:nrow(FF_daily))) {
+  test = (1+FF_daily$Mkt[i]/100)*test
+}
+test
+
+vars_flexible <- data.frame(0, 0, 0, 0, 0)
+colnames(vars_flexible) <- c("Index", "Variance", "Volatility", "Mkt", "RF")
+min_days_for_var = 10
+max_days_for_var = 22
+deviation = 0.6
+i = 1
+last_i = 0
+while (i <= nrow(FF_daily)) { # nrow(FF_daily)
+  if (i - last_i < min_days_for_var) {
+    i = i + 1
+  }
+  else {
+    if (vars_flexible$Index[1] == 0) {
+      ret_temp = 0
+      rf_temp = 0
+      for (j in c((last_i+1):i)) {
+        ret_temp <- ((1 + FF_daily$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+        rf_temp <- ((1 + FF_daily$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+      }
+      df_temp <- data.frame(i, var(FF_daily$Mkt[(last_i+1):i]), sd(FF_daily$Mkt[(last_i+1):i]), ret_temp, rf_temp)
+      vars_flexible[nrow(vars_flexible),] <- df_temp
+      last_i = i
+    }
+    else {
+      last_vola = vars_flexible$Volatility[nrow(vars_flexible)]
+      if (abs((sd(FF_daily$Mkt[(last_i+1):i]) - last_vola)/last_vola) >= deviation || i - last_i >= max_days_for_var) {
+        ret_temp = 0
+        rf_temp = 0
+        for (j in c((last_i+1):i)) {
+          ret_temp <- ((1 + FF_daily$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+          rf_temp <- ((1 + FF_daily$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+        }
+        df_temp <- data.frame(i, var(FF_daily$Mkt[(last_i+1):i]), sd(FF_daily$Mkt[(last_i+1):i]), ret_temp, rf_temp)
+        vars_flexible[nrow(vars_flexible) + 1,] <- df_temp
+        last_i = i
+      }
+    }
+    i = i + 1
+  }
+}
+ret_temp = 0
+for (j in c((last_i+1):(i-1))) {
+  ret_temp <- ((1 + FF_daily$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+  rf_temp <- ((1 + FF_daily$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+}
+df_temp <- data.frame(i, var(FF_daily$Mkt[(last_i+1):i]), sd(FF_daily$Mkt[(last_i+1):i]), ret_temp, rf_temp)
+vars_flexible[nrow(vars_flexible) + 1,] <- df_temp
+
+diff_test <- diff(vars_flexible$Index)
+summary(diff_test)
+sum(diff_test==10)
+
+vars_flexible$`Mkt-RF` <- vars_flexible$Mkt - vars_flexible$RF
+
+n_periods <- nrow(vars_flexible)
+c_flex <- sqrt(var(vars_flexible$`Mkt-RF`[-1]) / var(vars_flexible$`Mkt-RF`[-1] / vars_flexible$Variance[-n_periods]))
+
+weights <- c(1:(n_periods-1))
+vola_managed_returns <- c(1:(n_periods-1))
+
+for (period in 2:n_periods) {
+  weights[period-1] <- c_flex/vars_flexible$Variance[period-1]
+  vola_managed_returns[period-1] <- weights[period-1]*
+    (vars_flexible$Mkt[period]-vars_flexible$RF[period])+vars_flexible$RF[period]
+}
+returns <- data.frame(vars_flexible$Mkt[2:n_periods], vola_managed_returns)
+colnames(returns) <- c("Market Returns", "Vola Managed Returns")
+
+plot(vars_flexible$Variance, type = "l")
+plot(weights)
+print(var(vola_managed_returns))
+print(var(vars_flexible$Mkt[2:n_periods]))
+print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
+
+tot_ret = c(1:n_periods)
+tot_ret_VM = c(1:n_periods)
+
+for (period in 2:n_periods) {
+  tot_ret[period] = tot_ret[period - 1]*(1 + vars_flexible$Mkt[period]/100)
+  tot_ret_VM[period] = tot_ret_VM[period - 1]*(1 + vola_managed_returns[period - 1]/100)
+}
+tot_ret[n_periods]
+tot_ret_VM[n_periods]
+
+
+# ***** Plot market and VM returns on log scale *****
+performance <- data.frame(vars_flexible$Index, tot_ret, tot_ret_VM)
+scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
+           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+           20000,30000,40000,50000,60000,70000,80000,90000,100000)
+ggplot(performance, aes(vars_flexible$Index)) +
+  geom_line(aes(y=tot_ret)) +
+  geom_line(aes(y=tot_ret_VM)) +
+  scale_y_continuous(trans = "log10",
+                     breaks = trans_breaks('log10', function(x) 10^x),
+                     minor_breaks = scale,
+                     labels = trans_format('log10', math_format(10^.x)),
+                     limits = c(0.1,100000),
+                     expand = c(0,0)) +
+  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+
+reg_flex <- lm(vola_managed_returns ~ vars_flexible$`Mkt-RF`[-1])
+alpha <- reg_flex$coefficients[1]*12*(nrow(vars_flexible)-1)/1065
+rmse <- sigma(reg_flex)
+SR <- 12 *(nrow(vars_flexible)-1)/1065 * (mean(vola_managed_returns - vars_flexible$RF[-1])) / 
+  (sqrt(12 *(nrow(vars_flexible)-1)/1065) * sd(vola_managed_returns))
+appr <- sqrt(12 *(nrow(vars_flexible)-1)/1065) * alpha / (rmse*22)
+alpha
+rmse
+SR
+appr
+
+
 # ***** Manipulate Data *****
 FF_monthly <- FF_monthly %>% mutate(Mkt = `Mkt-RF` + RF)
 FF_daily <- FF_daily %>% mutate(Mkt = `Mkt-RF` + RF)
@@ -377,5 +520,4 @@ for (i in 1:length(names)) {
 }
 
 round(reg_output, 2)
-#132
-#abc
+
