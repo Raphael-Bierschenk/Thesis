@@ -24,10 +24,10 @@ FF_daily <- FF_daily %>% rename(Date = X1)
 FF_monthly <- FF_monthly %>% rename(Date = X1)
 VIX_daily <- VIX_daily %>% rename(Date = DATE, VIX = VIXCLS)
 
-first_day <- 19900101
-first_month <- 199001
-last_day <- 20190630
-last_month <- 201906
+first_day <- 19260701
+first_month <- 192607
+last_day <- 20150430
+last_month <- 201504
 
 FF_daily <- FF_daily %>% subset(subset = Date <= last_day & Date >= first_day)
 FF_monthly <- FF_monthly %>% subset(subset = Date <= last_month & Date >= first_month)
@@ -35,6 +35,8 @@ VIX_daily <- VIX_daily %>% subset(subset = Date <= ymd(last_day) & Date >= ymd(f
 
 n_days <- as.integer(count(FF_daily))
 n_months <- as.integer(count(FF_monthly))
+
+
 
 VIX_monthly <- data.frame(matrix(ncol = ncol(VIX_daily), nrow = n_months))
 colnames(VIX_monthly) <- colnames(VIX_daily)
@@ -44,6 +46,11 @@ for (i in 2:as.integer(count(VIX_daily))) {
     VIX_monthly$VIX[i] <- VIX_daily$VIX[i]
   }
 }
+
+
+
+
+
 
 # ***** Volatility Estimating *****
 FF_daily$u <- log(1+FF_daily$Mkt/100)
@@ -188,6 +195,13 @@ SR
 appr
 
 
+
+
+
+
+
+
+
 # ***** Manipulate Data *****
 FF_monthly <- FF_monthly %>% mutate(Mkt = `Mkt-RF` + RF)
 FF_daily <- FF_daily %>% mutate(Mkt = `Mkt-RF` + RF)
@@ -195,6 +209,25 @@ FF_daily <- FF_daily %>% mutate(Mkt = `Mkt-RF` + RF)
 FF_daily$Date <- ymd(FF_daily$Date)
 FF_monthly$Date <- as.character(FF_monthly$Date)
 FF_monthly$Date <- parse_date_time(FF_monthly$Date, "ym")
+
+VIX_daily <- VIX_daily[VIX_daily$Date %in% FF_daily$Date,]
+
+VIX_monthly <- data.frame(matrix(ncol = ncol(VIX_daily), nrow = n_months))
+colnames(VIX_monthly) <- colnames(VIX_daily)
+j <- 1
+VIX_monthly <- VIX_monthly %>% mutate(Date = FF_monthly$Date)
+
+for (i in 1:as.integer(count(VIX_daily))) {
+  if (i == 1) {
+    VIX_monthly$VIX[j] <- VIX_daily$VIX[j]
+    j <- j + 1
+    }
+  else if (month(VIX_daily$Date[i]) != month(VIX_daily$Date[i-1])) {
+    VIX_monthly$VIX[j] <- ifelse(!is.na(VIX_daily$VIX[i-1]), 
+                                 VIX_daily$VIX[i-1], VIX_daily$VIX[i])
+    j <- j + 1
+  }
+}
 
 # ***** Calculate Monthly Variances *****
 trading_days <- 22
@@ -205,7 +238,8 @@ monthly_vars <- FF_daily %>%
   group_by(year, month) %>%
   summarise(variance = var(`Mkt-RF`) * 21)
 
-monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance))
+monthly_vars <- monthly_vars %>% mutate(volatility = sqrt(variance), 
+                                        log_var = log(variance), log_vol = log(volatility))
 plot(monthly_vars$volatility * sqrt(trading_months), type = "l")
 
 # ******** Scenario 2: ARIMA model**
@@ -249,14 +283,19 @@ for (i in 1:n_months) {
 var_of_var_periods <- 12
 
 monthly_vars$var_of_var <- c(1:n_months)
-for (i in 1:n_months) {
+monthly_vars$var_of_var_log <- c(1:n_months)
+for (i in 1:n_months-1) {
   if (i <= var_of_var_periods) {
     monthly_vars$var_of_var[i] <- 
       var(monthly_vars$variance[1:var_of_var_periods])
+    monthly_vars$var_of_var_log[i] <- 
+      var(monthly_vars$log_var[1:var_of_var_periods])
   }
   else {
     monthly_vars$var_of_var[i] <- 
       var(monthly_vars$variance[(i-var_of_var_periods + 1):i])
+    monthly_vars$var_of_var_log[i] <- 
+      var(monthly_vars$log_var[(i-var_of_var_periods + 1):i])
   }
 }
 
@@ -264,12 +303,15 @@ for (i in 1:n_months) {
 vol_of_vol_periods <- 12
 
 monthly_vars$vol_of_vol <- c(1:n_months)
+monthly_vars$vol_of_vol_log <- c(1:n_months)
 for (i in 1:n_months) {
   if (i <= vol_of_vol_periods) {
     monthly_vars$vol_of_vol[i] <- sd(monthly_vars$volatility[1:vol_of_vol_periods])
+    monthly_vars$vol_of_vol_log[i] <- sd(monthly_vars$log_vol[1:vol_of_vol_periods])
   }
   else {
     monthly_vars$vol_of_vol[i] <- sd(monthly_vars$volatility[(i-vol_of_vol_periods + 1):i])
+    monthly_vars$vol_of_vol_log[i] <- sd(monthly_vars$log_vol[(i-vol_of_vol_periods + 1):i])
   }
 }
 
@@ -311,21 +353,57 @@ for (i in 2:n_days
 
 vol_of_vol_weight <- 1.2
 
-vol_of_vol_factor <- c(1:n_months)
+vol_of_vol_factor <- c(1:(n_months))
 for (i in 1:n_months) {
   if (i <= vol_of_vol_periods) vol_of_vol_factor[i] <- 1
   else {
     if (monthly_vars$vol_of_vol_d[i] <= 
-        mean(monthly_vars$vol_of_vol_d[(i - vol_of_vol_periods + 1):i])) {
+        mean(monthly_vars$vol_of_vol_d[(i - vol_of_vol_periods):(i - 1)])) {
       vol_of_vol_factor[i] <- vol_of_vol_weight
     }
     else {vol_of_vol_factor[i] <- 2 - vol_of_vol_weight}
   }
 }
 
+var_factor <- c(1:(n_months))
+var_diff <- diff(monthly_vars$variance)
+var_factor[i] <- 1
+var_periods <- 12
+var_weight <- 1.2
+for (i in 1:n_months-1) {
+  if (i <= var_periods) var_factor[i+1] <- 1
+  else {
+    if (var_diff[i] <= 
+        mean(var_diff[(i - var_periods):(i - 1)])) {
+      var_factor[i+1] <- 2 - var_weight
+    }
+    else {var_factor[i+1] <- var_weight}
+  }
+}
+
+var_factor1 <- c(1:(n_months))
+var_periods <- 12
+var_weight <- 0.8
+for (i in 1:n_months) {
+  if (i <= var_periods) var_factor1[i] <- 1
+  else {
+    if (monthly_vars$variance[i] > 
+        (mean(monthly_vars$variance[(i - var_periods):(i - 1)]) + 
+        sd(monthly_vars$variance[(i - var_periods):(i - 1)]))) {
+      var_factor1[i] <- var_weight
+    }
+    else if (monthly_vars$variance[i] <
+             (mean(monthly_vars$variance[(i - var_periods):(i - 1)]) - 
+              sd(monthly_vars$variance[(i - var_periods):(i - 1)]))) {
+      var_factor1[i] <- var_weight
+    }
+    else {var_factor1[i] <- 2 - var_weight}
+  }
+}
 # initiate strategy name vector
 names <- c("var_managed", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed", 
-           "var_of_var", "vol_of_vol", "recent_emphasize", "vol_of_vol_d", "test", "test1")
+           "var_of_var", "vol_of_vol", "recent_emphasize", "vol_of_vol_d", 
+           "Vol_of_vol_inv", "log_var", "log_vol", "log_vol_inv", "var_factor", "test")
 
 # decide denominator
 denom <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
@@ -335,9 +413,9 @@ denom[,1] <- monthly_vars$variance[-n_months]
 denom[,2] <- monthly_vars$volatility[-n_months]
 denom[,3] <- monthly_vars$ARMA_var[-n_months]
 denom[,4] <- monthly_vars$EWMA_var[-n_months]
-denom[,5] <- monthly_vars$variance[-n_months] * 
+denom[,5] <- monthly_vars$variance[-n_months] *
   monthly_vars$var_of_var[-n_months]
-denom[,6] <- monthly_vars$volatility[-n_months] * 
+denom[,6] <- monthly_vars$volatility[-n_months] *
   monthly_vars$vol_of_vol[-n_months]
 denom[,7] <- monthly_vars$volatility[-n_months] *
   monthly_vars$recent_vol[-n_months]
@@ -345,8 +423,16 @@ denom[,8] <- monthly_vars$variance[-n_months] *
   vol_of_vol_factor[-n_months]
 denom[,9] <- monthly_vars$variance[-n_months] / 
   monthly_vars$vol_of_vol_d[-n_months]
-denom[,10] <- monthly_vars$recent_var[-n_months]
-
+denom[,10] <- monthly_vars$variance[-n_months] * 
+  monthly_vars$var_of_var_log[-n_months]
+denom[,11] <- monthly_vars$volatility[-n_months] * 
+  monthly_vars$vol_of_vol_log[-n_months]
+denom[,12] <- monthly_vars$variance[-n_months] / 
+  monthly_vars$vol_of_vol_log[-n_months]
+denom[,13] <- monthly_vars$variance[-n_months] *
+  var_factor[-n_months]
+denom[,14] <- monthly_vars$variance[-n_months] *
+  var_factor1[-n_months]
 
 # ***** Calculate c *****
 c <- data.frame(matrix(ncol = length(names)))
@@ -369,54 +455,6 @@ for (i in 1:length(names)) {
   # apply midnight formula (we always take the x1 solution)
   c[i] <- 1/(2*a_qe[i])*(-b_qe[i]+sqrt((b_qe[i])^2-4*a_qe[i]*c_qe[i]))
 }
-
-
-
-
-
-#************************************************************************************************************
-# new c test (2 solutions due to quadratic equation)
-#c1 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
-#  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])+
-#     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
-#            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
-#            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
-#c2 = 1/(2*var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month]))*
-#  (-2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1])-
-#     sqrt((2*cov(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month], FF_monthly$RF[-1]))^2-4*
-#            var(FF_monthly$`Mkt-RF`[-1]/monthly_vars$variance[-last_entry_month])*
-#            (var(FF_monthly$RF[-1])-var(FF_monthly$Mkt[-1]))))
-# 
-# weights <- c(1:1065)
-# vola_managed_returns <- c(1:1065)
-# 
-# for (month in 2:1066) {
-#   weights[month-1] <- c1/monthly_vars$variance[month-1]
-#   vola_managed_returns[month-1] <- weights[month-1]*(FF_monthly$Mkt[month]-FF_monthly$RF[month])+FF_monthly$RF[month]
-# }
-# returns <- data.frame(FF_monthly$Mkt[2:1066], vola_managed_returns)
-# colnames(returns) <- c("Market Returns", "Vola Managed Returns")
-# 
-# 
-# print(var(vola_managed_returns))
-# print(var(FF_monthly$Mkt[2:1066]))
-# print(quantile(weights, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
-# 
-# tot_ret = c(1:1066)
-# tot_ret_VM = c(1:1066)
-# 
-# for (month in 2:1066) {
-#   tot_ret[month] = tot_ret[month - 1]*(1 + FF_monthly$Mkt[month]/100)
-#   tot_ret_VM[month] = tot_ret_VM[month - 1]*(1 + vola_managed_returns[month - 1]/100)
-# }
-# tot_ret[1066]
-# tot_ret_VM[1066]
-# 
-#********************************************************************************************
-
-
-
-
 
 # ***** Calculate weights and volatility managed returns *****
 weights <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
@@ -467,11 +505,7 @@ dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10
 ggplot(tot_ret, aes(months)) +
   geom_line(aes(y=Mkt)) +
   geom_line(aes(y=var_managed)) +
-  geom_line(aes(y=ARMA_vol_managed)) +
-  geom_line(aes(y=EWMA_vol_managed)) +
-  geom_line(aes(y=var_of_var)) +
-  geom_line(aes(y=vol_of_vol)) +
-  geom_line(aes(y=recent_emphasize)) +
+  geom_line(aes(y=var_factor)) +
   scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
                expand = c(0,0),
                breaks = dates,
@@ -502,7 +536,6 @@ for (i in 1:length(names)) {
   reg_FF3[[i]] <- lm(a ~ b + b1 + b2)
 }
 
-
 output_names <- c("alpha_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
 reg_output <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
 colnames(reg_output) <- names
@@ -521,3 +554,13 @@ for (i in 1:length(names)) {
 
 round(reg_output, 2)
 
+<<<<<<< HEAD
+=======
+ggplot() +
+  geom_line(aes(y=diff(monthly_vars$volatility[-(1:499)]), x=months[-(1:500)]), color = "red") +
+  geom_line(aes(y=diff(FF_monthly$`Mkt-RF`[-(1:499)]), x=months[-(1:500)])) +
+  geom_line(aes(y=monthly_vars$vol_of_vol_d[-(1:500)], x=months[-(1:500)]), color = "blue")
+summary(lm(FF_monthly$`Mkt-RF`[-1] ~ monthly_vars$volatility[-n_months] ))
+cov(diff(monthly_vars$variance[-n_months]), FF_monthly$`Mkt-RF`[-(1:2)])
+summary(lm(FF_monthly$`Mkt-RF`[-(1:2)] ~ diff(monthly_vars$variance[-n_months])))
+>>>>>>> 84b230ef5c1cff97883b5d9414625be052ac3ea9
