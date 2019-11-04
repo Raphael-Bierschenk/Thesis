@@ -542,6 +542,22 @@ for (i in 1:n_months-1) {
   }
 }
 
+var_factor2 <- c(1:(n_months))
+var_diff <- diff(monthly_vars$variance)
+var_factor2[i] <- 1
+var_periods <- 12
+var_weight <- 1.2
+for (i in 1:n_months-1) {
+  if (i <= var_periods) var_factor2[i+1] <- 1
+  else {
+    if (abs(var_diff[i]) <= 
+        mean(abs(var_diff[(i - var_periods):(i - 1)]))) {
+      var_factor2[i+1] <- monthly_vars$variance[i+1]
+    }
+    else {var_factor2[i+1] <- monthly_vars$recent_var[i+1]}
+  }
+}
+
 var_factor1 <- c(1:(n_months))
 var_periods <- 12
 var_weight <- 0.8
@@ -564,7 +580,7 @@ for (i in 1:n_months) {
 # initiate strategy name vector
 names <- c("var_managed", "vol_managed", "ARMA_vol_managed", "EWMA_vol_managed", 
            "var_of_var", "vol_of_vol", "recent_emphasize", "vol_of_vol_d", 
-           "Vol_of_vol_inv", "log_var", "log_vol", "log_vol_inv", "var_factor", "test")
+           "Vol_of_vol_inv", "log_var", "log_vol", "log_vol_inv", "var_factor", "test", "test1")
 
 # decide denominator
 denom <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
@@ -594,6 +610,7 @@ denom[,13] <- monthly_vars$variance[-n_months] *
   var_factor[-n_months]
 denom[,14] <- monthly_vars$variance[-n_months] *
   var_factor1[-n_months]
+denom[,15] <- var_factor2[-n_months]
 
 # ***** Calculate c *****
 c <- data.frame(matrix(ncol = length(names)))
