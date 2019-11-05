@@ -47,6 +47,7 @@ for (i in 2:as.integer(count(VIX_daily))) {
 }
 
 
+<<<<<<< HEAD
 # test with higher frequency
 vars_d <- 
 
@@ -60,6 +61,18 @@ vars_d <-
 # plot(FF_daily$u, type = "l")
 # mean(FF_daily$u) # mean of log changes basically zero as required
 # 
+=======
+FF_daily$Mkt <- FF_daily$`Mkt-RF` + FF_daily$RF
+
+# ***** Volatility Estimating *****
+FF_daily$u <- log(1+FF_daily$Mkt/100)
+FF_daily$u_sq <- FF_daily$u^2
+plot(FF_daily$u, type = "l")
+mean(FF_daily$u) # mean of log changes basically zero as required
+
+
+
+>>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
 # # ***** Volatility Estimating - EWMA *****
 # lambda = 0.94
 # FF_daily$EWMA_vars <- c(1:nrow(FF_daily))
@@ -91,7 +104,11 @@ vars_d <-
 # deviation = 0.6
 # i = 1
 # last_i = 0
+<<<<<<< HEAD
 # while (i <= nrow(FF_daily)) { # nrow(FF_daily)
+=======
+# while (i <= nrow(FF_daily)) { 
+>>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
 #   if (i - last_i < min_days_for_var) {
 #     i = i + 1
 #   }
@@ -195,12 +212,243 @@ vars_d <-
 # rmse
 # SR
 # appr
+<<<<<<< HEAD
+=======
 
 
+# Stefan 2. Sache Test
+# Calculate EWMA/GARCH Vola daily
+# At a certain deviation, reallocate
+
+# Parameters estimated with ML for 19260701 - 20190830
+lambda = 0.937456797351652
+omega = 0.00000125692641746428
+alpha = 0.0985634386311799
+beta = 0.890337746831946
+interval = 22
+
+daily_vars <- data.frame(0)
+daily_vars <- data.frame(FF_daily$Date[-c(1:interval)], FF_daily$Mkt[-c(1:interval)], FF_daily$RF[-c(1:interval)])
+colnames(daily_vars) <- c("Date", "Mkt", "RF")
+
+for (i in 1:nrow(daily_vars)) {
+  daily_ewma_var <- c(1:interval)
+  daily_garch_var <- c(1:interval)
+  
+  daily_ewma_var[1] <- FF_daily$u_sq[i]
+  daily_garch_var[1] <- FF_daily$u_sq[i]
+  
+  for (j in 2:interval) {
+    daily_ewma_var[j] <- lambda*daily_ewma_var[j-1]+(1-lambda)*FF_daily$u_sq[i+j-1]
+    daily_garch_var[j] <- omega+beta*daily_garch_var[j-1]+alpha*FF_daily$u_sq[i+j-1]
+  }
+  daily_vars$EWMAvars[i] <- daily_ewma_var[interval]
+  daily_vars$GARCHvars[i] <- daily_garch_var[interval]
+}
+
+daily_vars$EWMAvars <- daily_vars$EWMAvars*10000
+daily_vars$GARCHvars <- daily_vars$GARCHvars*10000
+plot(daily_vars$EWMAvars, type = "l")
+plot(daily_vars$GARCHvars, type = "l")
+
+daily_vars$EWMA_perc_dev[1] <- 0
+daily_vars$GARCH_perc_dev[1] <- 0
+for (i in 2:nrow(daily_vars)) {
+  daily_vars$EWMA_perc_dev[i] <- daily_vars$EWMAvars[i]/daily_vars$EWMAvars[i-1] - 1
+  daily_vars$GARCH_perc_dev[i] <- daily_vars$GARCHvars[i]/daily_vars$GARCHvars[i-1] - 1
+}
+summary(daily_vars$EWMA_perc_dev)
+summary(daily_vars$GARCH_perc_dev)
+
+# take ln because huge outliers
+daily_vars$EWMA_perc_dev_ln <- log(1 + daily_vars$EWMA_perc_dev)
+daily_vars$GARCH_perc_dev_ln <- log(1 + daily_vars$GARCH_perc_dev)
+summary(daily_vars$EWMA_perc_dev_ln)
+summary(daily_vars$GARCH_perc_dev_ln)
+
+# try to have as many reallocations as months
+quantiles <- apply(daily_vars[,6:9], 2, quantile, probs = c(0.1, 0.9))#c(1/44, 1-1/44))
+quantiles
+
+# use the new boundaries
+vars_flexible_v2_EWMA <- data.frame(0, 0, 0, 0, 0)
+colnames(vars_flexible_v2_EWMA) <- c("Index", "Variance", "Volatility", "Mkt", "RF")
+vars_flexible_v2_GARCH <- data.frame(0, 0, 0, 0, 0)
+colnames(vars_flexible_v2_GARCH) <- c("Index", "Variance", "Volatility", "Mkt", "RF")
+i_EWMA = 1
+i_GARCH = 1
+last_i_EWMA = 0
+last_i_GARCH = 0
+while (i_EWMA <= nrow(daily_vars)) {
+  # EWMA
+  if (daily_vars$EWMA_perc_dev[i_EWMA] > quantiles[2,1] || daily_vars$EWMA_perc_dev[i_EWMA] < quantiles[1,1]) {
+    ret_temp = 0
+    rf_temp = 0
+    for (j in c((last_i_EWMA+1):i_EWMA)) {
+      ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+      rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+    }
+    df_temp <- data.frame(i_EWMA, daily_vars$EWMAvars[i_EWMA], sqrt(daily_vars$EWMAvars[i_EWMA]), ret_temp, rf_temp)
+    vars_flexible_v2_EWMA[nrow(vars_flexible_v2_EWMA) + 1,] <- df_temp
+    last_i_EWMA = i_EWMA
+  }
+  i_EWMA = i_EWMA + 1
+}
+while (i_GARCH <= nrow(daily_vars)) {
+  # GARCH
+  if (daily_vars$GARCH_perc_dev[i_GARCH] > quantiles[2,2] || daily_vars$GARCH_perc_dev[i_GARCH] < quantiles[1,2]) {
+    ret_temp = 0
+    rf_temp = 0
+    for (j in c((last_i_GARCH+1):i_GARCH)) {
+      ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+      rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+    }
+    df_temp <- data.frame(i_GARCH, daily_vars$GARCHvars[i_GARCH], sqrt(daily_vars$GARCHvars[i_GARCH]), ret_temp, rf_temp)
+    vars_flexible_v2_GARCH[nrow(vars_flexible_v2_GARCH) + 1,] <- df_temp
+    last_i_GARCH = i_GARCH
+  }
+  i_GARCH = i_GARCH + 1
+}
+ret_temp = 0
+for (j in c(last_i_EWMA:(i_EWMA-1))) {
+  ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+  rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+}
+df_temp <- data.frame(i_EWMA, daily_vars$EWMAvars[i_EWMA-1], sqrt(daily_vars$EWMAvars[i_EWMA-1]), ret_temp, rf_temp)
+vars_flexible_v2_EWMA[nrow(vars_flexible_v2_EWMA) + 1,] <- df_temp
+ret_temp = 0
+for (j in c(last_i_GARCH:(i_GARCH-1))) {
+  ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
+  rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
+}
+df_temp <- data.frame(i_GARCH, daily_vars$GARCHvars[i_GARCH-1], sqrt(daily_vars$GARCHvars[i_GARCH-1]), ret_temp, rf_temp)
+vars_flexible_v2_GARCH[nrow(vars_flexible_v2_GARCH) + 1,] <- df_temp
+
+vars_flexible_v2_EWMA$`Mkt-RF` <- vars_flexible_v2_EWMA$Mkt - vars_flexible_v2_EWMA$RF
+vars_flexible_v2_GARCH$`Mkt-RF` <- vars_flexible_v2_GARCH$Mkt - vars_flexible_v2_GARCH$RF
+
+vars_flexible_v2_EWMA <- vars_flexible_v2_EWMA[-1,]
+vars_flexible_v2_GARCH <- vars_flexible_v2_GARCH[-1,]
+
+n_periods_EWMA <- nrow(vars_flexible_v2_EWMA)
+c_flex_EWMA <- sqrt(var(vars_flexible_v2_EWMA$`Mkt-RF`[-1]) / 
+                      var(vars_flexible_v2_EWMA$`Mkt-RF`[-1] / vars_flexible_v2_EWMA$Variance[-n_periods_EWMA]))
+n_periods_GARCH <- nrow(vars_flexible_v2_GARCH)
+c_flex_GARCH <- sqrt(var(vars_flexible_v2_GARCH$`Mkt-RF`[-1]) / 
+                      var(vars_flexible_v2_GARCH$`Mkt-RF`[-1] / vars_flexible_v2_GARCH$Variance[-n_periods_GARCH]))
+
+weights_EWMA <- c(1:(n_periods_EWMA-1))
+vola_managed_returns_EWMA <- c(1:(n_periods_EWMA-1))
+weights_GARCH <- c(1:(n_periods_GARCH-1))
+vola_managed_returns_GARCH <- c(1:(n_periods_GARCH-1))
+
+for (period in 2:n_periods_EWMA) {
+  weights_EWMA[period-1] <- c_flex_EWMA/vars_flexible_v2_EWMA$Variance[period-1]
+  vola_managed_returns_EWMA[period-1] <- weights_EWMA[period-1]*
+    (vars_flexible_v2_EWMA$Mkt[period]-vars_flexible_v2_EWMA$RF[period])+vars_flexible_v2_EWMA$RF[period]
+}
+returns_EWMA <- data.frame(vars_flexible_v2_EWMA$Mkt[2:n_periods_EWMA], vola_managed_returns_EWMA)
+colnames(returns) <- c("Market Returns", "Vola Managed Returns EWMA")
+
+for (period in 2:n_periods_GARCH) {
+  weights_GARCH[period-1] <- c_flex_GARCH/vars_flexible_v2_GARCH$Variance[period-1]
+  vola_managed_returns_GARCH[period-1] <- weights_GARCH[period-1]*
+    (vars_flexible_v2_GARCH$Mkt[period]-vars_flexible_v2_GARCH$RF[period])+vars_flexible_v2_GARCH$RF[period]
+}
+returns_GARCH <- data.frame(vars_flexible_v2_GARCH$Mkt[2:n_periods_GARCH], vola_managed_returns_GARCH)
+colnames(returns) <- c("Market Returns", "Vola Managed Returns GARCH")
 
 
+plot(vars_flexible_v2_EWMA$Variance, type = "l")
+plot(weights_EWMA)
+print(var(vola_managed_returns_EWMA))
+print(var(vars_flexible_v2_EWMA$Mkt[2:n_periods_EWMA]))
+print(quantile(weights_EWMA, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
+
+plot(vars_flexible_v2_GARCH$Variance, type = "l")
+plot(weights_GARCH)
+print(var(vola_managed_returns_GARCH))
+print(var(vars_flexible_v2_GARCH$Mkt[2:n_periods_GARCH]))
+print(quantile(weights_GARCH, probs = c(0.5, 0.75, 0.9, 0.99))) # paper: 0.93 1.59 2.64 6.39
+
+tot_ret_EWMA = c(1:n_periods_EWMA)
+tot_ret_VM_EWMA = c(1:n_periods_EWMA)
+
+for (period in 2:n_periods_EWMA) {
+  tot_ret_EWMA[period] = tot_ret_EWMA[period - 1]*(1 + vars_flexible_v2_EWMA$Mkt[period]/100)
+  tot_ret_VM_EWMA[period] = tot_ret_VM_EWMA[period - 1]*(1 + vola_managed_returns_EWMA[period - 1]/100)
+}
+tot_ret_EWMA[n_periods_EWMA]
+tot_ret_VM_EWMA[n_periods_EWMA]
 
 
+tot_ret_GARCH = c(1:n_periods_GARCH)
+tot_ret_VM_GARCH = c(1:n_periods_GARCH)
+
+for (period in 2:n_periods_GARCH) {
+  tot_ret_GARCH[period] = tot_ret_GARCH[period - 1]*(1 + vars_flexible_v2_GARCH$Mkt[period]/100)
+  tot_ret_VM_GARCH[period] = tot_ret_VM_GARCH[period - 1]*(1 + vola_managed_returns_GARCH[period - 1]/100)
+}
+tot_ret_GARCH[n_periods_GARCH]
+tot_ret_VM_GARCH[n_periods_GARCH]
+
+
+# ***** Plot market and VM returns on log scale *****
+performance <- data.frame(vars_flexible_v2_EWMA$Index, tot_ret_EWMA, tot_ret_VM_EWMA)
+scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
+           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+           20000,30000,40000,50000,60000,70000,80000,90000,100000)
+ggplot(performance, aes(vars_flexible_v2_EWMA$Index)) +
+  geom_line(aes(y=tot_ret_EWMA)) +
+  geom_line(aes(y=tot_ret_VM_EWMA)) +
+  scale_y_continuous(trans = "log10",
+                     breaks = trans_breaks('log10', function(x) 10^x),
+                     minor_breaks = scale,
+                     labels = trans_format('log10', math_format(10^.x)),
+                     limits = c(0.1,100000),
+                     expand = c(0,0)) +
+  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+
+reg_flex <- lm(vola_managed_returns_EWMA ~ vars_flexible_v2_EWMA$`Mkt-RF`[-1])
+alpha <- reg_flex$coefficients[1]*12*(nrow(vars_flexible_v2_EWMA)-1)/1065
+rmse <- sigma(reg_flex)
+SR <- 12 *(nrow(vars_flexible_v2_EWMA)-1)/1065 * (mean(vola_managed_returns_EWMA - vars_flexible_v2_EWMA$RF[-1])) / 
+  (sqrt(12 *(nrow(vars_flexible_v2_EWMA)-1)/1065) * sd(vola_managed_returns_EWMA))
+appr <- sqrt(12 *(nrow(vars_flexible_v2_EWMA)-1)/1065) * alpha / (rmse*22)
+alpha
+rmse
+SR
+appr
+>>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
+
+# ***** Plot market and VM returns on log scale *****
+performance <- data.frame(vars_flexible_v2_GARCH$Index, tot_ret_GARCH, tot_ret_VM_GARCH)
+scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
+           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+           20000,30000,40000,50000,60000,70000,80000,90000,100000)
+ggplot(performance, aes(vars_flexible_v2_GARCH$Index)) +
+  geom_line(aes(y=tot_ret_GARCH)) +
+  geom_line(aes(y=tot_ret_VM_GARCH)) +
+  scale_y_continuous(trans = "log10",
+                     breaks = trans_breaks('log10', function(x) 10^x),
+                     minor_breaks = scale,
+                     labels = trans_format('log10', math_format(10^.x)),
+                     limits = c(0.1,100000),
+                     expand = c(0,0)) +
+  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+
+reg_flex <- lm(vola_managed_returns_GARCH ~ vars_flexible_v2_GARCH$`Mkt-RF`[-1])
+alpha <- reg_flex$coefficients[1]*12*(nrow(vars_flexible_v2_GARCH)-1)/1065
+rmse <- sigma(reg_flex)
+SR <- 12 *(nrow(vars_flexible_v2_GARCH)-1)/1065 * (mean(vola_managed_returns_GARCH - vars_flexible_v2_GARCH$RF[-1])) / 
+  (sqrt(12 *(nrow(vars_flexible_v2_GARCH)-1)/1065) * sd(vola_managed_returns_GARCH))
+appr <- sqrt(12 *(nrow(vars_flexible_v2_GARCH)-1)/1065) * alpha / (rmse*22)
+alpha
+rmse
+SR
+appr
+
+#********************************************************************************************************
 
 
 
@@ -570,3 +818,15 @@ for (i in 1:length(names)) {
 }
 
 round(reg_output, 2)
+<<<<<<< HEAD
+=======
+
+ggplot() +
+  geom_line(aes(y=diff(monthly_vars$volatility[-(1:499)]), x=months[-(1:500)]), color = "red") +
+  geom_line(aes(y=diff(FF_monthly$`Mkt-RF`[-(1:499)]), x=months[-(1:500)])) +
+  geom_line(aes(y=monthly_vars$vol_of_vol_d[-(1:500)], x=months[-(1:500)]), color = "blue")
+summary(lm(FF_monthly$`Mkt-RF`[-1] ~ monthly_vars$volatility[-n_months] ))
+cov(diff(monthly_vars$variance[-n_months]), FF_monthly$`Mkt-RF`[-(1:2)])
+summary(lm(FF_monthly$`Mkt-RF`[-(1:2)] ~ diff(monthly_vars$variance[-n_months])))
+
+>>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
