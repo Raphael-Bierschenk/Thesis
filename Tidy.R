@@ -91,7 +91,7 @@ for (i in 1:n_months) {
   if (i <= min_obs) var_m$ARMA_var[i] <- variance_ts_m[i]
   else {
     ARMA_model_m[[i-min_obs]] <- arima(variance_ts_m[max(1,(i-max_obs+1)):i], 
-                                       order = c(1,0,1), method = "ML")
+                                       order = c(1,1,0), method = "ML")
     var_m$ARMA_var[i] <- as.numeric(forecast(ARMA_model_m[[i-min_obs]], h = 1)$mean)
   }
 }
@@ -268,7 +268,7 @@ round(reg_output, 2)
 #******************************** Custom Level ********************************#
 
 # Calculate Custom Variances
-frequ <- 10
+frequ <- 5
 n_custom <- as.integer(n_days / frequ)
 var_c <- data.frame(matrix(ncol = 2, nrow = n_custom))
 colnames(var_c) <- c("Date", "variance")
@@ -374,12 +374,49 @@ for (i in 1:length(names)) {
 }
 
 # Calculate Weights and Returns
-weights_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 1))
-colnames(weights_c) <- names
+weights_c_th <- data.frame(matrix(ncol = length(names), nrow = n_custom - 1))
+colnames(weights_c_th) <- names
 
 for (i in 1:(n_custom-1)) {
   for (j in 1:length(names)) {
-    weights_c[i,j] <- (c_c[j] / denom_c[i,j])
+    weights_c_th[i,j] <- (c_c[j] / denom_c[i,j])
+  }
+}
+
+# Check whether necessary to adjust weight
+diff_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 2))
+colnames(diff_c) <- names
+
+weights_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 1))
+colnames(weights_c) <- names
+
+adjust_n <- 40
+
+for (i in 1:length(names)) {
+  diff_c[,names[i]] <- diff(weights_c_th[,names[i]])
+}
+
+for (i in 1:(n_custom-1)) {
+  for (j in 1:length(names)) {
+    if (i <= (adjust_n+1)) {
+      weights_c[i,j] <- weights_c_th[i,j]
+    }
+    else {
+      if (diff_c[(i-1),j] > mean(diff_c[(i-1-adjust_n):(i-2),j]) + 
+        sd(diff_c[(i-1-adjust_n):(i-2),j]) || diff_c[(i-1),j] < 
+        mean(diff_c[(i-1-adjust_n):(i-2),j]) - sd(diff_c[(i-1-adjust_n):(i-2),j])) {
+        weights_c[i,j] <- weights_c_th[i,j]
+      }
+      else {
+        weights_c[i,j] <- weights_c[(i-1),j]
+      }
+    }
+  }
+}
+
+# Calculate Return --> adjust to weights_c_th here to take out diff
+for (i in 1:(n_custom-1)) {
+  for (j in 1:length(names)) {
     returns_c[i,names[j]] <- weights_c[i, j] *
       (returns_c$Mkt[i] - returns_c$RF[i]) + returns_c$RF[i]
   }
@@ -443,6 +480,7 @@ ggplot(tot_ret_c, aes(tot_ret_c$Date)) +
   geom_line(aes(y=vol_managed)) +
   geom_line(aes(y=ARMA_var_managed)) +
   geom_line(aes(y=EWMA_var_managed)) +
+  geom_line(aes(y=GARCH_var_managed)) +
   scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
                expand = c(0,0),
                breaks = dates,
