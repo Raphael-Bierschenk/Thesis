@@ -47,7 +47,7 @@ for (i in 2:as.integer(count(VIX_daily))) {
 }
 
 
-<<<<<<< HEAD
+
 # test with higher frequency
 vars_d <- 
 
@@ -61,7 +61,7 @@ vars_d <-
 # plot(FF_daily$u, type = "l")
 # mean(FF_daily$u) # mean of log changes basically zero as required
 # 
-=======
+
 FF_daily$Mkt <- FF_daily$`Mkt-RF` + FF_daily$RF
 
 # ***** Volatility Estimating *****
@@ -72,7 +72,6 @@ mean(FF_daily$u) # mean of log changes basically zero as required
 
 
 
->>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
 # # ***** Volatility Estimating - EWMA *****
 # lambda = 0.94
 # FF_daily$EWMA_vars <- c(1:nrow(FF_daily))
@@ -104,11 +103,11 @@ mean(FF_daily$u) # mean of log changes basically zero as required
 # deviation = 0.6
 # i = 1
 # last_i = 0
-<<<<<<< HEAD
+
 # while (i <= nrow(FF_daily)) { # nrow(FF_daily)
-=======
+
 # while (i <= nrow(FF_daily)) { 
->>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
+
 #   if (i - last_i < min_days_for_var) {
 #     i = i + 1
 #   }
@@ -212,8 +211,7 @@ mean(FF_daily$u) # mean of log changes basically zero as required
 # rmse
 # SR
 # appr
-<<<<<<< HEAD
-=======
+
 
 
 # Stefan 2. Sache Test
@@ -419,7 +417,7 @@ alpha
 rmse
 SR
 appr
->>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
+
 
 # ***** Plot market and VM returns on log scale *****
 performance <- data.frame(vars_flexible_v2_GARCH$Index, tot_ret_GARCH, tot_ret_VM_GARCH)
@@ -818,8 +816,7 @@ for (i in 1:length(names)) {
 }
 
 round(reg_output, 2)
-<<<<<<< HEAD
-=======
+
 
 ggplot() +
   geom_line(aes(y=diff(monthly_vars$volatility[-(1:499)]), x=months[-(1:500)]), color = "red") +
@@ -829,4 +826,3 @@ summary(lm(FF_monthly$`Mkt-RF`[-1] ~ monthly_vars$volatility[-n_months] ))
 cov(diff(monthly_vars$variance[-n_months]), FF_monthly$`Mkt-RF`[-(1:2)])
 summary(lm(FF_monthly$`Mkt-RF`[-(1:2)] ~ diff(monthly_vars$variance[-n_months])))
 
->>>>>>> 02d7cf25f852d1ee120d386f8d8b86fd07da13a3
