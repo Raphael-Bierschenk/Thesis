@@ -335,6 +335,7 @@ for (frequ in min_frequ:max_frequ) {
       returns_c[i,names[j]] <- weights_c[i, j] *
         (returns_c$Mkt[i] - returns_c$RF[i]) + returns_c$RF[i]    
     }
+<<<<<<< HEAD
   }
   
   # Check Variance and Display Weight Quantiles
@@ -354,6 +355,17 @@ for (frequ in min_frequ:max_frequ) {
     for (j in 1:length(names)) {
       tot_ret_c[i,names[j]] <- tot_ret_c[i-1, names[j]] * 
         (1 + (returns_c[i-1, names[j]]/100))
+=======
+    else {
+      if (diff_c[(i-1),j] > mean(diff_c[(i-1-adjust_n):(i-2),j]) + 
+        sd(diff_c[(i-1-adjust_n):(i-2),j]) || diff_c[(i-1),j] < 
+        mean(diff_c[(i-1-adjust_n):(i-2),j]) - sd(diff_c[(i-1-adjust_n):(i-2),j])) {
+        weights_c[i,j] <- weights_c_th[i,j] # theoretical (correct) weight
+      }
+      else {
+        weights_c[i,j] <- weights_c[(i-1),j] # previous month's weight
+      }
+>>>>>>> 723f7d4f47ef8ec0305af1f6cd5ff21b89de9058
     }
   }
   
