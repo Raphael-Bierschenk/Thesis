@@ -1,10 +1,9 @@
 abc <- 1
 abd <- 1
-hallo <- matrix(nrow = 7, ncol = 7)
-hallo1 <- matrix(nrow = 7, ncol = 7)
-for (frequ in 4:10) {
-  abc <- 1
-  for (adjust_n in (c(6,12,24,36,48,60,72))) {
+hallo <- matrix(nrow = 26, ncol = 1)
+hallo1 <- matrix(nrow = 26, ncol = 1)
+for (frequ in 4:30) {
+
     
 
     n_custom <- as.integer(n_days / frequ)
@@ -83,48 +82,12 @@ for (frequ in 4:10) {
     for (i in 1:(n_custom-1)) {
       for (j in 1:length(names)) {
         weights_c_th[i,j] <- (c_c[j] / denom_c[i,j])
-      }
-    }
-    
-    # Check whether necessary to adjust weight
-    diff_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 2))
-    colnames(diff_c) <- names
-    
-    weights_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 1))
-    colnames(weights_c) <- names
-
-    
-    for (i in 1:length(names)) {
-      diff_c[,names[i]] <- diff(weights_c_th[,names[i]])
-    }
-    
-    for (i in 1:(n_custom-1)) {
-      for (j in 1:length(names)) {
-        if (i <= (adjust_n+1)) {
-          weights_c[i,j] <- weights_c_th[i,j]
-        }
-        else {
-          if (diff_c[(i-1),j] > mean(diff_c[(i-1-adjust_n):(i-2),j]) + 
-              sd(diff_c[(i-1-adjust_n):(i-2),j]) || diff_c[(i-1),j] < 
-              mean(diff_c[(i-1-adjust_n):(i-2),j]) - sd(diff_c[(i-1-adjust_n):(i-2),j])) {
-            weights_c[i,j] <- weights_c_th[i,j]
-          }
-          else {
-            weights_c[i,j] <- weights_c[(i-1),j]
-          }
-        }
-      }
-    }
-    
-    # Calculate Return --> adjust to weights_c_th here to take out diff
-    for (i in 1:(n_custom-1)) {
-      for (j in 1:length(names)) {
-        returns_c[i,names[j]] <- weights_c[i, j] *
+        returns_c[i,names[j]] <- weights_c_th[i, j] *
           (returns_c$Mkt[i] - returns_c$RF[i]) + returns_c$RF[i]
       }
     }
     
-    
+ 
     # Calculate Total Return
     tot_ret_c <- data.frame(matrix(ncol = length(names) + 2, nrow = n_custom))
     colnames(tot_ret_c) <- c("Date", "Mkt", names)
@@ -157,13 +120,10 @@ for (frequ in 4:10) {
     colnames(reg_output_c) <- names
     rownames(reg_output_c) <- output_names_c
     
-    hallo[abc, abd] <- reg_mkt_c[[1]]$coefficients[1]
-    hallo1[abc, abd] <- sqrt(252 / frequ) * hallo[abc,abd] /sigma(reg_mkt_c[[1]])
+    hallo[abc, 1] <- reg_mkt_c[[1]]$coefficients[1]
+    hallo1[abc, 1] <- sqrt(252 / frequ) * hallo[abc,1] /sigma(reg_mkt_c[[1]])
     
     abc <- abc + 1
     
 
-
-  }
-  abd <- abd +1
 }

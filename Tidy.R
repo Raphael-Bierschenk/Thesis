@@ -148,11 +148,6 @@ denom_m[,5] <- var_m$Garch_var[-n_months]
 c_m <- data.frame(matrix(ncol = length(names)))
 colnames(c_m) <- names
 
-for (i in 1:length(names)) {
-  c_m <- sqrt(var(FF_monthly$`Mkt-RF`[-1]) /
-                var(FF_monthly$`Mkt-RF`[-1] / denom_m[,i]))
-}
-
 a_qe <- c(1:length(names))
 b_qe <- c(1:length(names))
 c_qe <- c(1:length(names))
@@ -356,11 +351,6 @@ denom_c[,5] <- var_c$Garch_var[-n_custom]
 c_c <- data.frame(matrix(ncol = length(names)))
 colnames(c_c) <- names
 
-for (i in 1:length(names)) {
-  c_c <- sqrt(var(returns_c$`Mkt-RF`) /
-                var(returns_c$`Mkt-RF` / denom_c[,i]))
-}
-
 a_qe <- c(1:length(names))
 b_qe <- c(1:length(names))
 c_qe <- c(1:length(names))
@@ -390,7 +380,7 @@ colnames(diff_c) <- names
 weights_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 1))
 colnames(weights_c) <- names
 
-adjust_n <- 40
+adjust_n <- 24
 
 for (i in 1:length(names)) {
   diff_c[,names[i]] <- diff(weights_c_th[,names[i]])
@@ -478,6 +468,173 @@ ggplot(tot_ret_c, aes(tot_ret_c$Date)) +
   geom_line(aes(y=Mkt)) +
   geom_line(aes(y=var_managed)) +
   geom_line(aes(y=vol_managed)) +
+  geom_line(aes(y=ARMA_var_managed)) +
+  geom_line(aes(y=EWMA_var_managed)) +
+  geom_line(aes(y=GARCH_var_managed)) +
+  scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
+               expand = c(0,0),
+               breaks = dates,
+               labels = format(dates, "%Y"),
+               minor_breaks = NULL) +
+  scale_y_continuous(trans = "log10",
+                     breaks = trans_breaks('log10', function(x) 10^x),
+                     minor_breaks = scale,
+                     labels = trans_format('log10', math_format(10^.x)),
+                     limits = c(0.1,100000),
+                     expand = c(0,0)) +
+  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+
+################################################################################
+#******************************** Daily Level ********************************#
+
+# Calculate Daily Variances
+var_d <- data.frame(matrix(ncol = 2, nrow = n_days))
+colnames(var_d) <- c("Date", "variance")
+var_d$variance <- log(1+FF_daily$Mkt/100)^2
+
+var_d <- var_d %>% mutate(volatility = sqrt(variance), Date = FF_daily$Date)
+
+# Scenario 2: ARIMA Model
+variance_ts_d <- xts(var_d$variance, order.by = var_d$Date)
+min_obs <- 12
+max_obs <- 200
+ARMA_model_d <- vector(mode = "list", length = n_days - min_obs)
+
+var_d$ARMA_var <- c(1:n_days)
+for (i in 1:n_days) {
+  if (i <= min_obs) var_d$ARMA_var[i] <- variance_ts_d[i]
+  else {
+    ARMA_model_d[[i-min_obs]] <- arima(variance_ts_d[max(1,(i-max_obs+1)):i],
+                                       order = c(1,0,1), method = "ML")
+    var_d$ARMA_var[i] <- as.numeric(forecast(ARMA_model_d[[i-min_obs]], h = 1)$mean)
+  }
+}
+
+# Scenario 3: EWMA Model
+var_d$EWMA_var <- c(1:n_days)
+for (i in 1:n_days) {
+  if (i == 1) var_d$EWMA_var[i] <- var_d$variance[i]
+  else {
+    var_d$EWMA_var[i] <- 
+      n * var_d$EWMA_var[i - 1] + (1 - n) * var_d$variance[i]
+  }
+}
+
+# Scenario 4: GARCH
+var_d$Garch_var <- c(1:n_days)
+var_d$Garch_var[1] <- var_d$variance[1]
+for (i in 2:n_days) {
+  var_d$Garch_var[i] <- omega + alpha*var_d$variance[i]
+  + beta*var_d$Garch_var[i-1]
+}
+
+# Set Scale Denominator
+names_d <- c("ARMA_var_managed", "EWMA_var_managed", "GARCH_var_managed")
+
+denom_d <- data.frame(matrix(ncol = length(names_d), nrow = n_days - 1))
+colnames(denom_d) <- names_d
+
+denom_d[,1] <- var_d$ARMA_var[-n_days]
+denom_d[,2] <- var_d$EWMA_var[-n_days]
+denom_d[,3] <- var_d$Garch_var[-n_days]
+
+# Calculate c with Midnight Formula
+c_d <- data.frame(matrix(ncol = length(names_d)))
+colnames(c_d) <- names_d
+
+a_qe <- c(1:length(names_d))
+b_qe <- c(1:length(names_d))
+c_qe <- c(1:length(names_d))
+
+for (i in 1:length(names_d)) {
+  a_qe[i] <- var(FF_daily$`Mkt-RF`[-1]/denom_d[,i])
+  b_qe[i] <- 2*cov(FF_daily$`Mkt-RF`[-1]/denom_d[,i], FF_daily$RF[-1])
+  c_qe[i] <- var(FF_daily$RF[-1])-var(FF_daily$Mkt[-1])
+  
+  c_d[i] <- 1/(2*a_qe[i])*(-b_qe[i]+sqrt((b_qe[i])^2-4*a_qe[i]*c_qe[i]))
+}
+
+# Calculate Weights and Returns
+weights_d <- data.frame(matrix(ncol = length(names_d), nrow = n_days - 1))
+colnames(weights_d) <- names_d
+
+returns_d <- data.frame(matrix(ncol = 4 + length(names_d), nrow = n_days - 1))
+colnames(returns_d) <- c("Date", "Mkt", "RF", "Mkt-RF", names_d)
+
+returns_d <- returns_d %>% mutate(Date = FF_daily$Date[-1], Mkt = FF_daily$Mkt[-1],
+                                  RF = FF_daily$RF[-1], "Mkt-RF" = Mkt - RF)
+
+for (i in 1:(n_days-1)) {
+  for (j in 1:length(names_d)) {
+    weights_d[i,j] <- c_d[j] / denom_d[i,j]
+    returns_d[i,names_d[j]] <- weights_d[i, j] *
+      (returns_d$Mkt[i] - returns_d$RF[i]) + returns_d$RF[i]
+  }
+}
+
+# Check Variance and Display Weight Quantiles
+print(apply(returns_d[,-c(1,3)], 2, var))
+print(apply(weights_d, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99)))
+
+# Calculate Total Return
+tot_ret_d <- data.frame(matrix(ncol = length(names_d) + 2, nrow = n_days))
+colnames(tot_ret_d) <- c("Date", "Mkt", names_d)
+tot_ret_d <- tot_ret_d %>% mutate(Date = FF_daily$Date)
+
+tot_ret_d[1,-1] <- 1
+
+for (i in 2:n_days) {
+  tot_ret_d$Mkt[i] <- tot_ret_d$Mkt[i-1] * 
+    (1 + (returns_d$Mkt[i-1]/100))
+  for (j in 1:length(names_d)) {
+    tot_ret_d[i,names_d[j]] <- tot_ret_d[i-1, names_d[j]] * 
+      (1 + (returns_d[i-1, names_d[j]]/100))
+  }
+}
+
+tot_ret_d[n_days,]
+
+# Compute Alpha and Ratios
+reg_mkt_d <- vector(mode = "list", length = length(names_d))
+reg_FF3_d <- vector(mode = "list", length = length(names_d))
+b <- 252 * (returns_d$`Mkt-RF`)
+b1 <- 252 * (FF_daily$SMB[-1])
+b2 <- 252 * (FF_daily$HML[-1])
+
+for (i in 1:length(names_d)) {
+  a <- 252 * (returns_d[, names_d[i]] - returns_d$RF)
+  reg_mkt_d[[i]] <- lm(a ~ b)
+}
+
+for (i in 1:length(names_d)) {
+  a <- 252 * (returns_d[, names_d[i]] - returns_d$RF)
+  reg_FF3_d[[i]] <- lm(a ~ b + b1 + b2)
+}
+
+reg_output_d <- data.frame(matrix(ncol = length(names_d), nrow = length(output_names)))
+colnames(reg_output_d) <- names_d
+rownames(reg_output_d) <- output_names
+
+for (i in 1:length(names_d)) {
+  reg_output_d["alpha_mkt", i] <- reg_mkt_d[[i]]$coefficients[1]
+  reg_output_d["R^2_mkt", i] <- summary(reg_mkt_d[[i]])$r.squared
+  reg_output_d["RMSE", i] <- sigma(reg_mkt_d[[i]])
+  reg_output_d["SR", i] <- 252 * (mean(returns_d[,names_d[i]] - returns_d$RF)) / 
+    (sqrt(252) * sd(returns_d[,names_d[i]]))
+  reg_output_d["Appr_Ratio", i] <- sqrt(252) * reg_output_d["alpha_mkt", i] /
+    reg_output_d["RMSE", i]
+  reg_output_d["alpha_FF3", i] <- reg_FF3_d[[i]]$coefficients[1]
+}
+
+round(reg_output_d, 2)
+
+# plot log scale
+scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
+           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+           20000,30000,40000,50000,60000,70000,80000,90000,100000)
+dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
+ggplot(tot_ret_d, aes(tot_ret_d$Date)) +
+  geom_line(aes(y=Mkt)) +
   geom_line(aes(y=ARMA_var_managed)) +
   geom_line(aes(y=EWMA_var_managed)) +
   geom_line(aes(y=GARCH_var_managed)) +
