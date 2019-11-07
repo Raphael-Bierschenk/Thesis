@@ -335,7 +335,6 @@ for (frequ in min_frequ:max_frequ) {
       returns_c[i,names[j]] <- weights_c[i, j] *
         (returns_c$Mkt[i] - returns_c$RF[i]) + returns_c$RF[i]    
     }
-<<<<<<< HEAD
   }
   
   # Check Variance and Display Weight Quantiles
