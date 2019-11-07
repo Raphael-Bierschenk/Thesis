@@ -405,10 +405,10 @@ for (i in 1:(n_custom-1)) {
       if (diff_c[(i-1),j] > mean(diff_c[(i-1-adjust_n):(i-2),j]) + 
         sd(diff_c[(i-1-adjust_n):(i-2),j]) || diff_c[(i-1),j] < 
         mean(diff_c[(i-1-adjust_n):(i-2),j]) - sd(diff_c[(i-1-adjust_n):(i-2),j])) {
-        weights_c[i,j] <- weights_c_th[i,j]
+        weights_c[i,j] <- weights_c_th[i,j] # theoretical (correct) weight
       }
       else {
-        weights_c[i,j] <- weights_c[(i-1),j]
+        weights_c[i,j] <- weights_c[(i-1),j] # previous month's weight
       }
     }
   }
