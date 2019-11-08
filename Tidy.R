@@ -13,6 +13,8 @@ library(forecast)
 library(tseries)
 library(urca)
 library(sweep)
+library(broom)
+library(ggthemes)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -40,7 +42,8 @@ FF_daily <- FF_daily %>% mutate(Mkt = `Mkt-RF` + RF)
 FF_daily$Date <- ymd(FF_daily$Date)
 FF_monthly$Date <- as.character(FF_monthly$Date)
 FF_monthly$Date <- parse_date_time(FF_monthly$Date, "ym")
-FF_monthly$Date <- as.Date(FF_monthly$Date)
+FF_monthly$Date <- ymd(FF_monthly$Date)
+
 
 ################################################################################
 #******************************* Monthly Level *******************************#
@@ -92,18 +95,16 @@ for (i in 2:n_months) {
 }
 
 # Strategy Names
-names <- c("var_managed", "vol_managed", "ARMA_var_managed", "EWMA_var_managed",
-           "GARCH_var_managed")
+names <- c("var_managed", "ARMA_var_managed", "EWMA_var_managed", "GARCH_var_managed")
 
 # Set Scale Denominator
 denom_m <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
 colnames(denom_m) <- names
 
 denom_m[,1] <- var_m$variance[-n_months]
-denom_m[,2] <- var_m$volatility[-n_months]
-denom_m[,3] <- var_m$ARMA_var[-n_months]
-denom_m[,4] <- var_m$EWMA_var[-n_months]
-denom_m[,5] <- var_m$Garch_var[-n_months]
+denom_m[,2] <- var_m$ARMA_var[-n_months]
+denom_m[,3] <- var_m$EWMA_var[-n_months]
+denom_m[,4] <- var_m$Garch_var[-n_months]
 
 # Calculate c with Midnight Formula
 c_m <- data.frame(matrix(ncol = length(names)))
@@ -138,9 +139,10 @@ for (i in 1:(n_months-1)) {
   }
 }
 
-# Check Variance and Display Weight Quantiles
+# Check Variance and Calculate Weight Quantiles
 print(apply(returns_m[,-c(1,3)], 2, var))
-print(apply(weights_m, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99)))
+quantile_m <- as.data.frame(apply(weights_m, 2, quantile, 
+                                  probs = c(0.5, 0.75, 0.9, 0.99)))
 
 # Calculate Total Return
 tot_ret_m <- data.frame(matrix(ncol = length(names) + 2, nrow = n_months))
@@ -161,43 +163,36 @@ for (i in 2:n_months) {
 tot_ret_m[n_months,]
 
 # ***** Plot market and VM returns on log scale *****
-scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
-           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
-           20000,30000,40000,50000,60000,70000,80000,90000,100000)
-dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
-ggplot(tot_ret_m, aes(tot_ret_m$Date)) +
-  geom_line(aes(y=Mkt)) +
-  geom_line(aes(y=var_managed)) +
-  geom_line(aes(y=vol_managed)) +
-  geom_line(aes(y=ARMA_var_managed)) +
-  geom_line(aes(y=EWMA_var_managed)) +
-  scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
-               expand = c(0,0),
-               breaks = dates,
-               labels = format(dates, "%Y"),
-               minor_breaks = NULL) +
-  scale_y_continuous(trans = "log10",
-                     breaks = trans_breaks('log10', function(x) 10^x),
-                     minor_breaks = scale,
-                     labels = trans_format('log10', math_format(10^.x)),
-                     limits = c(0.1,100000),
-                     expand = c(0,0)) +
-  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+ggplot(tot_ret_m, aes(x = Date)) +
+  geom_line(aes(y=Mkt, color = "Buy and Hold")) +
+  geom_line(aes(y=var_managed, color = "Realized Variance")) +
+  geom_line(aes(y=vol_managed, color = "ARMA")) +
+  geom_line(aes(y=ARMA_var_managed, color = "EWMA")) +
+  geom_line(aes(y=EWMA_var_managed, color = "GARCH")) +
+  scale_y_log10() +
+  theme_stata() + 
+  ggtitle("Cumulative Performance") + 
+  xlab("Date") +
+  ylab("Performance") +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
 
 # Compute Alpha and Ratios
 reg_mkt_m <- vector(mode = "list", length = length(names))
 reg_FF3_m <- vector(mode = "list", length = length(names))
-b <- 12 * (returns_m$Mkt - returns_m$rf)
-b1 <- 12 * (FF_monthly$SMB[-1])
-b2 <- 12 * (FF_monthly$HML[-1])
+b <- trading_months * (returns_m$Mkt - returns_m$rf)
+b1 <- trading_months * (FF_monthly$SMB[-1])
+b2 <- trading_months * (FF_monthly$HML[-1])
 
 for (i in 1:length(names)) {
-  a <- 12 * (returns_m[, names[i]] - returns_m$rf)
+  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
   reg_mkt_m[[i]] <- lm(a ~ b)
 }
 
 for (i in 1:length(names)) {
-  a <- 12 * (returns_m[, names[i]] - returns_m$rf)
+  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
   reg_FF3_m[[i]] <- lm(a ~ b + b1 + b2)
 }
 
@@ -210,7 +205,8 @@ for (i in 1:length(names)) {
   reg_output_m["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
   reg_output_m["R^2_mkt", i] <- summary(reg_mkt_m[[i]])$r.squared
   reg_output_m["RMSE", i] <- sigma(reg_mkt_m[[i]])
-  reg_output_m["SR", i] <- 12 * (mean(returns_m[,names[i]] - returns_m$rf)) / 
+  reg_output_m["SR", i] <- trading_months * 
+    (mean(returns_m[,names[i]] - returns_m$rf)) / 
     (sqrt(trading_months) * sd(returns_m[,names[i]]))
   reg_output_m["Appr_Ratio", i] <- sqrt(trading_months) * 
     reg_output_m["alpha_mkt", i] / reg_output["RMSE", i]
@@ -223,9 +219,10 @@ round(reg_output_m, 2)
 #******************************** Custom Level ********************************#
 
 # Set Up List to Store Outputs from Different Frequencies
-reg_output_c <- vector(mode = "list", length = n_months - min_obs)
 min_frequ <- 4
 max_frequ <- 30
+reg_output_c <- vector(mode = "list", length = max_frequ - min_frequ)
+quantile_c <- vector(mode = "list", length = max_frequ - min_frequ)
 
 # Loop to Test Different Frequencies
 
@@ -271,7 +268,7 @@ for (frequ in min_frequ:max_frequ) {
   returns_c <- returns_c %>% mutate("Mkt-RF" = Mkt - RF)
   
   # Scenario 2: ARIMA Model
-  variance_ts_c <- xts(var_c$variance, order.by = FF_monthly$Date)
+  variance_ts_c <- xts(var_c$variance, order.by = var_c$Date)
   
   Acf(variance_ts_c, lag = 22)
   Pacf(variance_ts_c, lag = 22)
@@ -338,9 +335,11 @@ for (frequ in min_frequ:max_frequ) {
     }
   }
   
-  # Check Variance and Display Weight Quantiles
+  # Check Variance and Calculate Weight Quantiles
   print(apply(returns_c[,-c(1,3,(3+length(names)+1))], 2, var))
-  print(apply(weights_c, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99)))
+  mod_num <- frequ + 1 - min_frequ
+  quantiles_c[[mod_num]] <- as.data.frame(apply(weights_c, 2, quantile, 
+                                                probs = c(0.5, 0.75, 0.9, 0.99)))
   
   # Calculate Total Return
   tot_ret_c <- data.frame(matrix(ncol = length(names) + 2, nrow = n_custom))
@@ -370,45 +369,37 @@ for (frequ in min_frequ:max_frequ) {
   }
   
   output_names_c <- c("alpha_mkt", "R^2_mkt", "RMSE", "Appr_Ratio")
-  reg_output_c[[frequ]] <- data.frame(matrix(ncol = length(names), nrow = length(output_names_c)))
-  colnames(reg_output_c[[frequ]]) <- names
-  rownames(reg_output_c[[frequ]]) <- output_names_c
+  reg_output_c[[mod_num]] <- data.frame(matrix(ncol = length(names), 
+                                               nrow = length(output_names_c)))
+  colnames(reg_output_c[[mod_num]]) <- names
+  rownames(reg_output_c[[mod_num]]) <- output_names_c
   
   for (i in 1:length(names)) {
-    reg_output_c[[frequ]]["alpha_mkt", i] <- reg_mkt_c[[i]]$coefficients[1]
-    reg_output_c[[frequ]]["R^2_mkt", i] <- summary(reg_mkt_c[[i]])$r.squared
-    reg_output_c[[frequ]]["RMSE", i] <- sigma(reg_mkt_c[[i]])
-    reg_output_c[[frequ]]["Appr_Ratio", i] <- sqrt(252 / frequ) * 
-      reg_output_c[[frequ]]["alpha_mkt", i] / reg_output_c[[frequ]]["RMSE", i]
+    reg_output_c[[mod_num]]["alpha_mkt", i] <- reg_mkt_c[[i]]$coefficients[1]
+    reg_output_c[[mod_num]]["R^2_mkt", i] <- summary(reg_mkt_c[[i]])$r.squared
+    reg_output_c[[mod_num]]["RMSE", i] <- sigma(reg_mkt_c[[i]])
+    reg_output_c[[mod_num]]["Appr_Ratio", i] <- sqrt(252 / frequ) * 
+      reg_output_c[[mod_num]]["alpha_mkt", i] / reg_output_c[[mod_num]]["RMSE", i]
   }
   
-  round(reg_output_c, 2)
+  round(reg_output_c[[frequ]], 2)
   
   # plot log scale
-  months <- seq(as.Date("1926/7/1"), as.Date("2015/4/1"), by = frequ)
-  scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
-             200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
-             20000,30000,40000,50000,60000,70000,80000,90000,100000)
-  dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
-  ggplot(tot_ret_c, aes(tot_ret_c$Date)) +
-    geom_line(aes(y=Mkt)) +
-    geom_line(aes(y=var_managed)) +
-    geom_line(aes(y=vol_managed)) +
-    geom_line(aes(y=ARMA_var_managed)) +
-    geom_line(aes(y=EWMA_var_managed)) +
-    geom_line(aes(y=GARCH_var_managed)) +
-    scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
-                 expand = c(0,0),
-                 breaks = dates,
-                 labels = format(dates, "%Y"),
-                 minor_breaks = NULL) +
-    scale_y_continuous(trans = "log10",
-                       breaks = trans_breaks('log10', function(x) 10^x),
-                       minor_breaks = scale,
-                       labels = trans_format('log10', math_format(10^.x)),
-                       limits = c(0.1,100000),
-                       expand = c(0,0)) +
-    ggtitle("Cumulative Performance") + xlab("") + ylab("")
+  ggplot(tot_ret_c, aes(x = Date)) +
+    geom_line(aes(y=Mkt, color = "Buy and Hold")) +
+    geom_line(aes(y=var_managed, color = "Realized Variance")) +
+    geom_line(aes(y=ARMA_var_managed, color = "ARMA")) +
+    geom_line(aes(y=EWMA_var_managed, color = "EWMA")) +
+    geom_line(aes(y=GARCH_var_managed, color = "GARCH")) +
+    scale_y_log10() +
+    theme_stata() + 
+    ggtitle("Cumulative Performance") + 
+    xlab("Date") +
+    ylab("Performance") +
+    scale_color_manual(name = "Strategies", 
+                       values = c("Buy and Hold" = "black", 
+                                  "Realized Variance" = "red", "ARMA" = "blue", 
+                                  "EWMA" = "green", "GARCH" = "yellow"))
 }
 
 
@@ -497,9 +488,9 @@ for (i in 1:(n_days-1)) {
   }
 }
 
-# Check Variance and Display Weight Quantiles
+# Check Variance and Calculate Weight Quantiles
 print(apply(returns_d[,-c(1,3)], 2, var))
-print(apply(weights_d, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99)))
+quantiles_d <- apply(weights_d, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99))
 
 # Calculate Total Return
 tot_ret_d <- data.frame(matrix(ncol = length(names_d) + 2, nrow = n_days))
@@ -554,24 +545,50 @@ for (i in 1:length(names_d)) {
 round(reg_output_d, 2)
 
 # plot log scale
-scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
-           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
-           20000,30000,40000,50000,60000,70000,80000,90000,100000)
-dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
-ggplot(tot_ret_d, aes(tot_ret_d$Date)) +
-  geom_line(aes(y=Mkt)) +
-  geom_line(aes(y=ARMA_var_managed)) +
-  geom_line(aes(y=EWMA_var_managed)) +
-  geom_line(aes(y=GARCH_var_managed)) +
-  scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
-               expand = c(0,0),
-               breaks = dates,
-               labels = format(dates, "%Y"),
-               minor_breaks = NULL) +
-  scale_y_continuous(trans = "log10",
-                     breaks = trans_breaks('log10', function(x) 10^x),
-                     minor_breaks = scale,
-                     labels = trans_format('log10', math_format(10^.x)),
-                     limits = c(0.1,100000),
-                     expand = c(0,0)) +
-  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+ggplot(tot_ret_d, aes(x = Date)) +
+  geom_line(aes(y=Mkt, col = "Buy and Hold")) +
+  geom_line(aes(y=ARMA_var_managed, col = "ARMA")) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  scale_y_log10() +
+  theme_stata() + 
+  ggtitle("Cumulative Performance") + 
+  xlab("Date") +
+  ylab("Performance") +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
+
+################################################################################
+#************************** Export Tables and Graphs **************************#
+
+# Check whether can use tidy() for data.frames, otherwise formattable
+
+alpha_c <- data.frame(matrix(ncol = length(names), nrow = max_frequ - min_frequ))
+colnames(alpha_c) <- names
+
+appr_c <- data.frame(matrix(ncol = length(names), nrow = max_frequ - min_frequ))
+colnames(appr_c) <- names
+
+for (i in 1:(max_frequ - min_frequ + 1)) {
+  for (j in 1:length(names)) {
+    alpha_c[i,j] <- reg_output_c[[i]][1,j]
+    appr_c[i,j] <- reg_output_c[[i]][5,j]
+  }
+}
+
+ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
+  geom_line(aes(y=var_managed, col = "Realized Variance")) +
+  geom_line(aes(y=ARMA_var_managed, col = "ARMA")) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  theme_stata() + 
+  ggtitle("Alpha (MKT) Depending on Frequency") +
+  xlab("Frequency in Days") + 
+  ylab("Alpha (in %)") +
+  ylim(0, 6) +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
