@@ -1,4 +1,5 @@
 rm(list = ls())
+options(warn=-1)
 
 library(readr)
 library(ggplot2)
@@ -53,6 +54,7 @@ FF_daily <- FF_daily %>% mutate(Mkt = `Mkt-RF` + RF)
 FF_daily$Date <- ymd(FF_daily$Date)
 FF_monthly$Date <- as.character(FF_monthly$Date)
 FF_monthly$Date <- parse_date_time(FF_monthly$Date, "ym")
+FF_monthly$Date <- as.Date(FF_monthly$Date)
 
 FF_daily$u <- log(1+FF_daily$Mkt/100)
 FF_daily$u_sq <- FF_daily$u^2
@@ -232,9 +234,9 @@ for (i in 1:nrow(daily_vars)) {
 daily_vars$EWMAvars <- daily_vars$EWMAvars*10000
 daily_vars$GARCHvars <- daily_vars$GARCHvars*10000
 ggplot(daily_vars, aes(Date)) + 
-  geom_line(aes(y=EWMAvars)) + 
-  geom_line(aes(y=GARCHvars)) + 
-  geom_line(aes(y=Var))
+  geom_line(aes(y=EWMAvars, colour="red")) + 
+  geom_line(aes(y=GARCHvars, colour="green")) + 
+  geom_line(aes(y=Var, colour="blue"))
 
 daily_vars$Var_perc_dev[1] <- 0
 daily_vars$EWMA_perc_dev[1] <- 0
@@ -265,7 +267,7 @@ i_GARCH = 1
 last_i_Var = 0
 last_i_EWMA = 0
 last_i_GARCH = 0
-while (i_Var <= nrow(daily_vars)) {
+while (i_Var < nrow(daily_vars)) {
   # Var
   if (daily_vars$Var_perc_dev[i_Var] > quantiles[2,1] || daily_vars$Var_perc_dev[i_Var] < quantiles[1,1]) {
     ret_temp = 0
@@ -280,7 +282,7 @@ while (i_Var <= nrow(daily_vars)) {
   }
   i_Var = i_Var + 1
 }
-while (i_EWMA <= nrow(daily_vars)) {
+while (i_EWMA < nrow(daily_vars)) {
   # EWMA
   if (daily_vars$EWMA_perc_dev[i_EWMA] > quantiles[2,2] || daily_vars$EWMA_perc_dev[i_EWMA] < quantiles[1,2]) {
     ret_temp = 0
@@ -295,7 +297,7 @@ while (i_EWMA <= nrow(daily_vars)) {
   }
   i_EWMA = i_EWMA + 1
 }
-while (i_GARCH <= nrow(daily_vars)) {
+while (i_GARCH < nrow(daily_vars)) {
   # GARCH
   if (daily_vars$GARCH_perc_dev[i_GARCH] > quantiles[2,3] || daily_vars$GARCH_perc_dev[i_GARCH] < quantiles[1,3]) {
     ret_temp = 0
@@ -311,25 +313,25 @@ while (i_GARCH <= nrow(daily_vars)) {
   i_GARCH = i_GARCH + 1
 }
 ret_temp = 0
-for (j in c(last_i_Var:(i_Var-1))) {
+for (j in c((last_i_Var+1):i_Var)) {
   ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
   rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
 }
-df_temp <- data.frame(FF_daily$Date[i_Var+interval-1], daily_vars$Var[i_Var-1], sqrt(daily_vars$Var[i_Var-1]), ret_temp, rf_temp)
+df_temp <- data.frame(FF_daily$Date[i_Var+interval], daily_vars$Var[i_Var], sqrt(daily_vars$Var[i_Var]), ret_temp, rf_temp)
 vars_flexible_v2_Var[nrow(vars_flexible_v2_Var) + 1,] <- df_temp
 ret_temp = 0
-for (j in c(last_i_EWMA:(i_EWMA-1))) {
+for (j in c((last_i_EWMA+1):i_EWMA)) {
   ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
   rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
 }
-df_temp <- data.frame(FF_daily$Date[i_EWMA+interval-1], daily_vars$EWMAvars[i_EWMA-1], sqrt(daily_vars$EWMAvars[i_EWMA-1]), ret_temp, rf_temp)
+df_temp <- data.frame(FF_daily$Date[i_EWMA+interval], daily_vars$EWMAvars[i_EWMA], sqrt(daily_vars$EWMAvars[i_EWMA]), ret_temp, rf_temp)
 vars_flexible_v2_EWMA[nrow(vars_flexible_v2_EWMA) + 1,] <- df_temp
 ret_temp = 0
-for (j in c(last_i_GARCH:(i_GARCH-1))) {
+for (j in c((last_i_GARCH+1):i_GARCH)) {
   ret_temp <- ((1 + daily_vars$Mkt[j]/100)*(1 + ret_temp/100) - 1)*100
   rf_temp <- ((1 + daily_vars$RF[j]/100)*(1 + rf_temp/100) - 1)*100
 }
-df_temp <- data.frame(FF_daily$Date[i_GARCH+interval-1], daily_vars$GARCHvars[i_GARCH-1], sqrt(daily_vars$GARCHvars[i_GARCH-1]), ret_temp, rf_temp)
+df_temp <- data.frame(FF_daily$Date[i_GARCH+interval], daily_vars$GARCHvars[i_GARCH], sqrt(daily_vars$GARCHvars[i_GARCH]), ret_temp, rf_temp)
 vars_flexible_v2_GARCH[nrow(vars_flexible_v2_GARCH) + 1,] <- df_temp
 
 vars_flexible_v2_Var$`Mkt-RF` <- vars_flexible_v2_Var$Mkt - vars_flexible_v2_Var$RF
@@ -341,26 +343,22 @@ vars_flexible_v2_EWMA <- vars_flexible_v2_EWMA[-1,]
 vars_flexible_v2_GARCH <- vars_flexible_v2_GARCH[-1,]
 
 n_var <- nrow(vars_flexible_v2_Var)
-names <- c("Var", "EWMA", "GARCH")
+n_EWMA <- nrow(vars_flexible_v2_EWMA)
+n_GARCH <- nrow(vars_flexible_v2_GARCH)
+names <- c("var", "EWMA", "GARCH")
 
 # Set Scale Denominator
-denom_var <- data.frame(matrix(ncol = length(names), nrow = n_var - 1))
-colnames(denom_var) <- names
-denom_var[,1] <- vars_flexible_v2_Var$Variance[-n_var]
-denom_var[,2] <- vars_flexible_v2_EWMA$Variance[-n_var]
-denom_var[,3] <- vars_flexible_v2_GARCH$Variance[-n_var]
+denom_var <- vars_flexible_v2_Var$Variance[-n_var]
+denom_EWMA <- vars_flexible_v2_EWMA$Variance[-n_EWMA]
+denom_GARCH <- vars_flexible_v2_GARCH$Variance[-n_GARCH]
 
-mktrf_var <- data.frame(matrix(ncol = length(names), nrow = n_var - 1))
-colnames(mktrf_var) <- names
-mktrf_var[,1] <- vars_flexible_v2_Var$`Mkt-RF`[-n_var]
-mktrf_var[,2] <- vars_flexible_v2_EWMA$`Mkt-RF`[-n_var]
-mktrf_var[,3] <- vars_flexible_v2_GARCH$`Mkt-RF`[-n_var]
+mktrf_var <- vars_flexible_v2_Var$`Mkt-RF`[-n_var]
+mktrf_EWMA <- vars_flexible_v2_EWMA$`Mkt-RF`[-n_EWMA]
+mktrf_GARCH <- vars_flexible_v2_GARCH$`Mkt-RF`[-n_GARCH]
 
-rf_var <- data.frame(matrix(ncol = length(names), nrow = n_var - 1))
-colnames(rf_var) <- names
-rf_var[,1] <- vars_flexible_v2_Var$RF[-n_var]
-rf_var[,2] <- vars_flexible_v2_EWMA$RF[-n_var]
-rf_var[,3] <- vars_flexible_v2_GARCH$RF[-n_var]
+rf_var <- vars_flexible_v2_Var$RF[-n_var]
+rf_EWMA <- vars_flexible_v2_EWMA$RF[-n_EWMA]
+rf_GARCH <- vars_flexible_v2_GARCH$RF[-n_GARCH]
 
 # Calculate c with Midnight Formula
 c_var <- data.frame(matrix(ncol = length(names)))
@@ -371,60 +369,80 @@ b_qe <- c(1:length(names))
 c_qe <- c(1:length(names))
 
 for (i in 1:length(names)) {
-  a_qe[i] <- var(mktrf_var[,i]/denom_var[,i])
-  b_qe[i] <- 2*cov(mktrf_var[,i]/denom_var[,i], rf_var[,i])
-  c_qe[i] <- var(rf_var[,i])-var(mktrf_var[,i]+rf_var[,i])
+  a_qe[i] <- var(get(paste("mktrf_", names[i], sep = ""))/get(paste("denom_", names[i], sep = "")))
+  b_qe[i] <- 2*cov(get(paste("mktrf_", names[i], sep = ""))/get(paste("denom_", names[i], sep = "")), 
+                   get(paste("rf_", names[i], sep = "")))
+  c_qe[i] <- var(get(paste("rf_", names[i], sep = "")))-var(get(paste("mktrf_", names[i], sep = "")) + 
+                                                              get(paste("rf_", names[i], sep = "")))
   
   c_var[i] <- 1/(2*a_qe[i])*(-b_qe[i]+sqrt((b_qe[i])^2-4*a_qe[i]*c_qe[i]))
 }
 
-weights_var <- data.frame(matrix(ncol = length(names), nrow = n_var - 1))
-colnames(weights_var) <- names
+weights_var <- data.frame(matrix(ncol = 1, nrow = n_var - 1))
+weights_EWMA <- data.frame(matrix(ncol = 1, nrow = n_EWMA - 1))
+weights_GARCH <- data.frame(matrix(ncol = 1, nrow = n_GARCH - 1))
 
 for (period in 1:(n_var-1)) {
-  for (method in 1:length(names)) {
-    weights_var[period, method] <- c_var[method] / denom_var[period, method]
-  }
+  weights_var[period,] <- c_var$var / denom_var[period]
+}
+for (period in 1:(n_EWMA-1)) {
+  weights_EWMA[period,] <- c_var$EWMA / denom_EWMA[period]
+}
+for (period in 1:(n_GARCH-1)) {
+  weights_GARCH[period,] <- c_var$GARCH / denom_GARCH[period]
 }
 summary(weights_var)
+summary(weights_EWMA)
+summary(weights_GARCH)
 
-vars_flexible_v2_Var$VMR[1] <- vars_flexible_v2_Var$Mkt[1]
-vars_flexible_v2_EWMA$VMR[1] <- vars_flexible_v2_EWMA$Mkt[1]
-vars_flexible_v2_GARCH$VMR[1] <- vars_flexible_v2_GARCH$Mkt[1]
-for (i in 2:(n_var-1)) {
-  vars_flexible_v2_Var$VMR[i] <- weights_var[i,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i]
-  vars_flexible_v2_EWMA$VMR[i] <- weights_var[i,2]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i]
-  vars_flexible_v2_GARCH$VMR[i] <- weights_var[i,3]*vars_flexible_v2_GARCH$`Mkt-RF`[i]+vars_flexible_v2_GARCH$RF[i]
+vars_flexible_v2_Var$VMR <- 1
+vars_flexible_v2_EWMA$VMR <- 1
+vars_flexible_v2_GARCH$VMR <- 1
+for (i in 2:n_var) {
+  vars_flexible_v2_Var$VMR[i] <- weights_var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i]
+}
+for (i in 2:n_EWMA) {
+  vars_flexible_v2_EWMA$VMR[i] <- weights_EWMA[i-1,1]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i]
+}
+for (i in 2:n_GARCH) {
+  vars_flexible_v2_GARCH$VMR[i] <- weights_GARCH[i-1,1]*vars_flexible_v2_GARCH$`Mkt-RF`[i]+vars_flexible_v2_GARCH$RF[i]
 }
 
-ggplot(weights_var, aes(x=c(1:nrow(weights_var)))) + 
-  geom_line(aes(y = Var, colour = "red")) + 
-  geom_line(aes(y = EWMA, colour = "green")) + 
-  geom_line(aes(y = GARCH, colour = "blue")) +
+ggplot() + 
+  geom_line(aes(y = weights_var[,1], x = c(1:nrow(weights_var)), colour = "red")) + 
+  geom_line(aes(y = weights_EWMA[,1], x = c(1:nrow(weights_EWMA)), colour = "green")) + 
+  geom_line(aes(y = weights_GARCH[,1], x = c(1:nrow(weights_GARCH)), colour = "blue")) +
   ggtitle("Weights") + xlab("") + ylab("")
 
 
 apply(vars_flexible_v2_Var[,c(4,7)], 2, var)
 apply(vars_flexible_v2_EWMA[,c(4,7)], 2, var)
 apply(vars_flexible_v2_GARCH[,c(4,7)], 2, var)
-apply(weights_var, 2, quantile, probs = c(0.5, 0.75, 0.9, 0.99))
+quantile(weights_var[,1], probs = c(0.5, 0.75, 0.9, 0.99))
+quantile(weights_EWMA[,1], probs = c(0.5, 0.75, 0.9, 0.99))
+quantile(weights_GARCH[,1], probs = c(0.5, 0.75, 0.9, 0.99))
 
 
 tot_ret_VM_Var = data.frame(vars_flexible_v2_Var$Date, c(1:n_var))
-tot_ret_VM_EWMA = data.frame(vars_flexible_v2_EWMA$Date, c(1:n_var))
-tot_ret_VM_GARCH = data.frame(vars_flexible_v2_GARCH$Date, c(1:n_var))
+tot_ret_VM_EWMA = data.frame(vars_flexible_v2_EWMA$Date, c(1:n_EWMA))
+tot_ret_VM_GARCH = data.frame(vars_flexible_v2_GARCH$Date, c(1:n_GARCH))
 
-summary(vars_flexible_v2_Var$VMR)
-summary(vars_flexible_v2_Var$Mkt)
+write_excel_csv(vars_flexible_v2_Var, "C:/Users/stefa/Desktop/test.csv")
 
 for (period in 2:n_var) {
   tot_ret_VM_Var[period, 2] = tot_ret_VM_Var[period - 1, 2]*(1 + vars_flexible_v2_Var$VMR[period - 1]/100)
+}
+for (period in 2:n_EWMA) {
   tot_ret_VM_EWMA[period, 2] = tot_ret_VM_EWMA[period - 1, 2]*(1 + vars_flexible_v2_EWMA$VMR[period - 1]/100)
+}
+for (period in 2:n_GARCH) {
   tot_ret_VM_GARCH[period, 2] = tot_ret_VM_GARCH[period - 1, 2]*(1 + vars_flexible_v2_GARCH$VMR[period - 1]/100)
 }
 tot_ret_VM_Var[n_var,2]
-tot_ret_VM_EWMA[n_var,2]
-tot_ret_VM_GARCH[n_var,2]
+tot_ret_VM_EWMA[n_EWMA,2]
+tot_ret_VM_GARCH[n_GARCH,2]
+summary(vars_flexible_v2_EWMA$VMR)
+summary(vars_flexible_v2_GARCH$VMR)
 
 # Market return
 market_returns <- data.frame(FF_monthly$Date, c(1:nrow(FF_monthly)))
@@ -439,9 +457,10 @@ scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,
            20000,30000,40000,50000,60000,70000,80000,90000,100000)
 dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
 ggplot() +
-  geom_line(aes(y=tot_ret_VM_Var$c.1.n_var., x=tot_ret_VM_Var$vars_flexible_v2_Var.Index)) +
-  geom_line(aes(y=tot_ret_VM_EWMA$c.1.n_var., x=tot_ret_VM_EWMA$vars_flexible_v2_EWMA.Index)) +
-  geom_line(aes(y=tot_ret_VM_GARCH$c.1.n_var., x=tot_ret_VM_GARCH$vars_flexible_v2_GARCH.Index)) +
+  geom_line(aes(y=market_returns$c.1.nrow.FF_monthly.., x=market_returns$FF_monthly.Date)) +
+  geom_line(aes(y=tot_ret_VM_Var$c.1.n_var., x=tot_ret_VM_Var$vars_flexible_v2_Var.Date, colour="red")) +
+  geom_line(aes(y=tot_ret_VM_EWMA$c.1.n_EWMA., x=tot_ret_VM_EWMA$vars_flexible_v2_EWMA.Date, colour="green")) +
+  geom_line(aes(y=tot_ret_VM_GARCH$c.1.n_GARCH., x=tot_ret_VM_GARCH$vars_flexible_v2_GARCH.Date, colour="blue")) +
   scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
                expand = c(0,0),
                breaks = dates,
