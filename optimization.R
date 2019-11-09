@@ -106,6 +106,7 @@ print(garch_max_daily <- optimx(c(0.1, 0.9), function(x) garch_function_daily(x[
                                 method = "Nelder-Mead", control = list(maximize = TRUE)))
 alpha_daily <- garch_max_daily$p1
 beta_daily <- garch_max_daily$p2
+omega_daily <- max(0,long_term_variance*(1-alpha_daily-beta_daily))
 
 # GARCH monthly
 long_term_variance <- mean(FF_monthly$u_sq)
@@ -127,3 +128,4 @@ print(garch_max_monthly <- optimx(c(0.1, 0.9), function(x) garch_function_monthl
                                 method = "Nelder-Mead", control = list(maximize = TRUE)))
 alpha_monthly <- garch_max_monthly$p1
 beta_monthly <- garch_max_monthly$p2
+omega_monthly <- max(0,long_term_variance*(1-alpha_monthly-beta_monthly))

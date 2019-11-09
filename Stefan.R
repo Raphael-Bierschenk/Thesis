@@ -204,11 +204,11 @@ appr
 # At a certain deviation, reallocate
 
 # Parameters estimated with ML for 19260701 - 20190830
-lambda = 0.937456797351652
-omega = 0.00000125692641746428
-alpha = 0.0985634386311799
-beta = 0.890337746831946
-interval = 22
+lambda = 0.937456814037826
+omega = 0.0000320928357044934
+alpha = 0.0986757938205847
+beta = 0.890202868683846
+interval = 252
 
 daily_vars <- data.frame(0)
 daily_vars <- data.frame(FF_daily$Date[-c(1:interval)], FF_daily$Mkt[-c(1:interval)], FF_daily$RF[-c(1:interval)])
@@ -345,45 +345,45 @@ vars_flexible_v2_GARCH <- vars_flexible_v2_GARCH[-1,]
 n_var <- nrow(vars_flexible_v2_Var)
 n_EWMA <- nrow(vars_flexible_v2_EWMA)
 n_GARCH <- nrow(vars_flexible_v2_GARCH)
-names <- c("var", "EWMA", "GARCH")
+names_flex <- c("Var", "EWMA", "GARCH")
 
 # Set Scale Denominator
-denom_var <- vars_flexible_v2_Var$Variance[-n_var]
+denom_Var <- vars_flexible_v2_Var$Variance[-n_var]
 denom_EWMA <- vars_flexible_v2_EWMA$Variance[-n_EWMA]
 denom_GARCH <- vars_flexible_v2_GARCH$Variance[-n_GARCH]
 
-mktrf_var <- vars_flexible_v2_Var$`Mkt-RF`[-n_var]
-mktrf_EWMA <- vars_flexible_v2_EWMA$`Mkt-RF`[-n_EWMA]
-mktrf_GARCH <- vars_flexible_v2_GARCH$`Mkt-RF`[-n_GARCH]
+mktrf_Var <- vars_flexible_v2_Var$`Mkt-RF`[-1]
+mktrf_EWMA <- vars_flexible_v2_EWMA$`Mkt-RF`[-1]
+mktrf_GARCH <- vars_flexible_v2_GARCH$`Mkt-RF`[-1]
 
-rf_var <- vars_flexible_v2_Var$RF[-n_var]
-rf_EWMA <- vars_flexible_v2_EWMA$RF[-n_EWMA]
-rf_GARCH <- vars_flexible_v2_GARCH$RF[-n_GARCH]
+rf_Var <- vars_flexible_v2_Var$RF[-1]
+rf_EWMA <- vars_flexible_v2_EWMA$RF[-1]
+rf_GARCH <- vars_flexible_v2_GARCH$RF[-1]
 
 # Calculate c with Midnight Formula
-c_var <- data.frame(matrix(ncol = length(names)))
-colnames(c_var) <- names
+c_var <- data.frame(matrix(ncol = length(names_flex)))
+colnames(c_var) <- names_flex
 
-a_qe <- c(1:length(names))
-b_qe <- c(1:length(names))
-c_qe <- c(1:length(names))
+a_qe <- c(1:length(names_flex))
+b_qe <- c(1:length(names_flex))
+c_qe <- c(1:length(names_flex))
 
-for (i in 1:length(names)) {
-  a_qe[i] <- var(get(paste("mktrf_", names[i], sep = ""))/get(paste("denom_", names[i], sep = "")))
-  b_qe[i] <- 2*cov(get(paste("mktrf_", names[i], sep = ""))/get(paste("denom_", names[i], sep = "")), 
-                   get(paste("rf_", names[i], sep = "")))
-  c_qe[i] <- var(get(paste("rf_", names[i], sep = "")))-var(get(paste("mktrf_", names[i], sep = "")) + 
-                                                              get(paste("rf_", names[i], sep = "")))
+for (i in 1:length(names_flex)) {
+  a_qe[i] <- var(get(paste("mktrf_", names_flex[i], sep = ""))/get(paste("denom_", names_flex[i], sep = "")))
+  b_qe[i] <- 2*cov(get(paste("mktrf_", names_flex[i], sep = ""))/get(paste("denom_", names_flex[i], sep = "")), 
+                   get(paste("rf_", names_flex[i], sep = "")))
+  c_qe[i] <- var(get(paste("rf_", names_flex[i], sep = "")))-var(get(paste("mktrf_", names_flex[i], sep = "")) + 
+                                                              get(paste("rf_", names_flex[i], sep = "")))
   
   c_var[i] <- 1/(2*a_qe[i])*(-b_qe[i]+sqrt((b_qe[i])^2-4*a_qe[i]*c_qe[i]))
 }
 
-weights_var <- data.frame(matrix(ncol = 1, nrow = n_var - 1))
+weights_Var <- data.frame(matrix(ncol = 1, nrow = n_var - 1))
 weights_EWMA <- data.frame(matrix(ncol = 1, nrow = n_EWMA - 1))
 weights_GARCH <- data.frame(matrix(ncol = 1, nrow = n_GARCH - 1))
 
 for (period in 1:(n_var-1)) {
-  weights_var[period,] <- c_var$var / denom_var[period]
+  weights_Var[period,] <- c_var$Var / denom_Var[period]
 }
 for (period in 1:(n_EWMA-1)) {
   weights_EWMA[period,] <- c_var$EWMA / denom_EWMA[period]
@@ -391,15 +391,15 @@ for (period in 1:(n_EWMA-1)) {
 for (period in 1:(n_GARCH-1)) {
   weights_GARCH[period,] <- c_var$GARCH / denom_GARCH[period]
 }
-summary(weights_var)
-summary(weights_EWMA)
-summary(weights_GARCH)
+quantile(weights_Var[,1], probs = c(0.5, 0.75, 0.9, 0.99))
+quantile(weights_EWMA[,1], probs = c(0.5, 0.75, 0.9, 0.99))
+quantile(weights_GARCH[,1], probs = c(0.5, 0.75, 0.9, 0.99))
 
-vars_flexible_v2_Var$VMR <- 1
-vars_flexible_v2_EWMA$VMR <- 1
-vars_flexible_v2_GARCH$VMR <- 1
+vars_flexible_v2_Var$VMR <- 0
+vars_flexible_v2_EWMA$VMR <- 0
+vars_flexible_v2_GARCH$VMR <- 0
 for (i in 2:n_var) {
-  vars_flexible_v2_Var$VMR[i] <- weights_var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i]
+  vars_flexible_v2_Var$VMR[i] <- weights_Var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i]
 }
 for (i in 2:n_EWMA) {
   vars_flexible_v2_EWMA$VMR[i] <- weights_EWMA[i-1,1]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i]
@@ -409,38 +409,32 @@ for (i in 2:n_GARCH) {
 }
 
 ggplot() + 
-  geom_line(aes(y = weights_var[,1], x = c(1:nrow(weights_var)), colour = "red")) + 
+  geom_line(aes(y = weights_Var[,1], x = c(1:nrow(weights_Var)), colour = "red")) + 
   geom_line(aes(y = weights_EWMA[,1], x = c(1:nrow(weights_EWMA)), colour = "green")) + 
   geom_line(aes(y = weights_GARCH[,1], x = c(1:nrow(weights_GARCH)), colour = "blue")) +
   ggtitle("Weights") + xlab("") + ylab("")
 
 
-apply(vars_flexible_v2_Var[,c(4,7)], 2, var)
-apply(vars_flexible_v2_EWMA[,c(4,7)], 2, var)
-apply(vars_flexible_v2_GARCH[,c(4,7)], 2, var)
-quantile(weights_var[,1], probs = c(0.5, 0.75, 0.9, 0.99))
-quantile(weights_EWMA[,1], probs = c(0.5, 0.75, 0.9, 0.99))
-quantile(weights_GARCH[,1], probs = c(0.5, 0.75, 0.9, 0.99))
+apply(vars_flexible_v2_Var[-1,c(4,7)], 2, var)
+apply(vars_flexible_v2_EWMA[-1,c(4,7)], 2, var)
+apply(vars_flexible_v2_GARCH[-1,c(4,7)], 2, var)
 
-
-tot_ret_VM_Var = data.frame(vars_flexible_v2_Var$Date, c(1:n_var))
-tot_ret_VM_EWMA = data.frame(vars_flexible_v2_EWMA$Date, c(1:n_EWMA))
-tot_ret_VM_GARCH = data.frame(vars_flexible_v2_GARCH$Date, c(1:n_GARCH))
+tot_ret_VM_Var = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_Var$Date), c(1:(n_var+1)))
+tot_ret_VM_EWMA = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_EWMA$Date), c(1:(n_EWMA+1)))
+tot_ret_VM_GARCH = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_GARCH$Date), c(1:(n_GARCH+1)))
 
 write_excel_csv(vars_flexible_v2_Var, "C:/Users/stefa/Desktop/test.csv")
 
-for (period in 2:n_var) {
+for (period in 2:(n_var+1)) {
   tot_ret_VM_Var[period, 2] = tot_ret_VM_Var[period - 1, 2]*(1 + vars_flexible_v2_Var$VMR[period - 1]/100)
 }
-for (period in 2:n_EWMA) {
+for (period in 2:(n_EWMA+1)) {
   tot_ret_VM_EWMA[period, 2] = tot_ret_VM_EWMA[period - 1, 2]*(1 + vars_flexible_v2_EWMA$VMR[period - 1]/100)
 }
-for (period in 2:n_GARCH) {
+for (period in 2:(n_GARCH+1)) {
   tot_ret_VM_GARCH[period, 2] = tot_ret_VM_GARCH[period - 1, 2]*(1 + vars_flexible_v2_GARCH$VMR[period - 1]/100)
 }
-tot_ret_VM_Var[n_var,2]
-tot_ret_VM_EWMA[n_EWMA,2]
-tot_ret_VM_GARCH[n_GARCH,2]
+summary(vars_flexible_v2_Var$VMR)
 summary(vars_flexible_v2_EWMA$VMR)
 summary(vars_flexible_v2_GARCH$VMR)
 
@@ -458,9 +452,9 @@ scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,
 dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
 ggplot() +
   geom_line(aes(y=market_returns$c.1.nrow.FF_monthly.., x=market_returns$FF_monthly.Date)) +
-  geom_line(aes(y=tot_ret_VM_Var$c.1.n_var., x=tot_ret_VM_Var$vars_flexible_v2_Var.Date, colour="red")) +
-  geom_line(aes(y=tot_ret_VM_EWMA$c.1.n_EWMA., x=tot_ret_VM_EWMA$vars_flexible_v2_EWMA.Date, colour="green")) +
-  geom_line(aes(y=tot_ret_VM_GARCH$c.1.n_GARCH., x=tot_ret_VM_GARCH$vars_flexible_v2_GARCH.Date, colour="blue")) +
+  geom_line(aes(y=tot_ret_VM_Var$c.1..n_var...1.., x=tot_ret_VM_Var$c.as.Date..1926.07.01....vars_flexible_v2_Var.Date., colour="red")) +
+  geom_line(aes(y=tot_ret_VM_EWMA$c.1..n_EWMA...1.., x=tot_ret_VM_EWMA$c.as.Date..1926.07.01....vars_flexible_v2_EWMA.Date., colour="green")) +
+  geom_line(aes(y=tot_ret_VM_GARCH$c.1..n_GARCH...1.., x=tot_ret_VM_GARCH$c.as.Date..1926.07.01....vars_flexible_v2_GARCH.Date., colour="blue")) +
   scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
                expand = c(0,0),
                breaks = dates,
@@ -474,43 +468,38 @@ ggplot() +
                      expand = c(0,0)) +
   ggtitle("Cumulative Performance") + xlab("") + ylab("")
 
-reg_flex <- lm(vola_managed_returns_EWMA ~ vars_flexible_v2_EWMA$`Mkt-RF`[-1])
-alpha <- reg_flex$coefficients[1]*12*(nrow(vars_flexible_v2_EWMA)-1)/1065
-rmse <- sigma(reg_flex)
-SR <- 12 *(nrow(vars_flexible_v2_EWMA)-1)/1065 * (mean(vola_managed_returns_EWMA - vars_flexible_v2_EWMA$RF[-1])) / 
-  (sqrt(12 *(nrow(vars_flexible_v2_EWMA)-1)/1065) * sd(vola_managed_returns_EWMA))
-appr <- sqrt(12 *(nrow(vars_flexible_v2_EWMA)-1)/1065) * alpha / (rmse*22)
-alpha
-rmse
-SR
-appr
+reg_flex_Var <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
+reg_flex_EWMA <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_EWMA)
+reg_flex_GARCH <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_GARCH)
 
-# ***** Plot market and VM returns on log scale *****
-performance <- data.frame(vars_flexible_v2_GARCH$Index, tot_ret_GARCH, tot_ret_VM_GARCH)
-scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
-           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
-           20000,30000,40000,50000,60000,70000,80000,90000,100000)
-ggplot(performance, aes(vars_flexible_v2_GARCH$Index)) +
-  geom_line(aes(y=tot_ret_GARCH)) +
-  geom_line(aes(y=tot_ret_VM_GARCH)) +
-  scale_y_continuous(trans = "log10",
-                     breaks = trans_breaks('log10', function(x) 10^x),
-                     minor_breaks = scale,
-                     labels = trans_format('log10', math_format(10^.x)),
-                     limits = c(0.1,100000),
-                     expand = c(0,0)) +
-  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+output_names <- c("alpha_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio")
+reg_output_flex <- data.frame(matrix(ncol = length(names_flex), nrow = length(output_names)))
+colnames(reg_output_flex) <- names_flex
+rownames(reg_output_flex) <- output_names
 
-reg_flex <- lm(vola_managed_returns_GARCH ~ vars_flexible_v2_GARCH$`Mkt-RF`[-1])
-alpha <- reg_flex$coefficients[1]*12*(nrow(vars_flexible_v2_GARCH)-1)/1065
-rmse <- sigma(reg_flex)
-SR <- 12 *(nrow(vars_flexible_v2_GARCH)-1)/1065 * (mean(vola_managed_returns_GARCH - vars_flexible_v2_GARCH$RF[-1])) / 
-  (sqrt(12 *(nrow(vars_flexible_v2_GARCH)-1)/1065) * sd(vola_managed_returns_GARCH))
-appr <- sqrt(12 *(nrow(vars_flexible_v2_GARCH)-1)/1065) * alpha / (rmse*22)
-alpha
-rmse
-SR
-appr
+trading_days <- 252
+factors <- c(1:3)
+factors[1] <- nrow(vars_flexible_v2_Var) / (nrow(FF_daily)-interval) * trading_days
+factors[2] <- nrow(vars_flexible_v2_EWMA) / (nrow(FF_daily)-interval) * trading_days
+factors[3] <- nrow(vars_flexible_v2_GARCH) / (nrow(FF_daily)-interval) * trading_days
+
+
+for (i in 1:length(names_flex)) {
+  reg_output_flex["alpha_mkt", i] <- get(paste("reg_flex_", names_flex[i], sep = ""))$coefficients[1] * factors[i]
+  reg_output_flex["R^2_mkt", i] <- summary(get(paste("reg_flex_", names_flex[i], sep = "")))$r.squared
+  reg_output_flex["RMSE", i] <- sigma(get(paste("reg_flex_", names_flex[i], sep = ""))) * factors[i]
+  reg_output_flex["SR", i] <- factors[i] * 
+    mean(get(paste("vars_flexible_v2_", names_flex[i], sep = ""))$VMR - 
+            get(paste("vars_flexible_v2_", names_flex[i], sep = ""))$RF) / 
+    (sqrt(factors[i]) * sd(get(paste("vars_flexible_v2_", names_flex[i], sep = ""))$VMR))
+  reg_output_flex["Appr_Ratio", i] <- sqrt(factors[i]) * reg_output_flex["alpha_mkt", i] / reg_output_flex["RMSE", i]
+}
+
+round(reg_output_flex, 2)
+
+tot_ret_VM_Var[n_var+1,2]
+tot_ret_VM_EWMA[n_EWMA+1,2]
+tot_ret_VM_GARCH[n_GARCH+1,2]
 
 #********************************************************************************************************
 
