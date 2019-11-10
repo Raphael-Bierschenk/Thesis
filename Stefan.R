@@ -26,8 +26,8 @@ VIX_daily <- VIX_daily %>% rename(Date = DATE, VIX = VIXCLS)
 
 first_day <- 19260701
 first_month <- 192607
-last_day <- 20150430
-last_month <- 201504
+last_day <- 20190830
+last_month <- 201908
 
 FF_daily <- FF_daily %>% subset(subset = Date <= last_day & Date >= first_day)
 FF_monthly <- FF_monthly %>% subset(subset = Date <= last_month & Date >= first_month)
@@ -205,10 +205,10 @@ appr
 
 # Parameters estimated with ML for 19260701 - 20190830
 lambda = 0.937456814037826
-omega = 0.0000320928357044934
+omega = 0.00000125947711345891
 alpha = 0.0986757938205847
 beta = 0.890202868683846
-interval = 252
+interval = 126
 
 daily_vars <- data.frame(0)
 daily_vars <- data.frame(FF_daily$Date[-c(1:interval)], FF_daily$Mkt[-c(1:interval)], FF_daily$RF[-c(1:interval)])
@@ -251,7 +251,7 @@ summary(daily_vars$EWMA_perc_dev)
 summary(daily_vars$GARCH_perc_dev)
 
 # try to have as many reallocations as months
-quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.05, 0.95))#c(1/44, 1-1/44))
+quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.1, 0.9))#c(1/44, 1-1/44))
 quantiles
 
 # use the new boundaries
@@ -422,8 +422,6 @@ apply(vars_flexible_v2_GARCH[-1,c(4,7)], 2, var)
 tot_ret_VM_Var = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_Var$Date), c(1:(n_var+1)))
 tot_ret_VM_EWMA = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_EWMA$Date), c(1:(n_EWMA+1)))
 tot_ret_VM_GARCH = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_GARCH$Date), c(1:(n_GARCH+1)))
-
-write_excel_csv(vars_flexible_v2_Var, "C:/Users/stefa/Desktop/test.csv")
 
 for (period in 2:(n_var+1)) {
   tot_ret_VM_Var[period, 2] = tot_ret_VM_Var[period - 1, 2]*(1 + vars_flexible_v2_Var$VMR[period - 1]/100)

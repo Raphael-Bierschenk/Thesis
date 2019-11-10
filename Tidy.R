@@ -15,6 +15,7 @@ library(urca)
 library(sweep)
 library(broom)
 library(ggthemes)
+library(moments)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -26,8 +27,8 @@ FF_monthly <- FF_monthly %>% rename(Date = X1)
 
 first_day <- 19260701
 first_month <- 192607
-last_day <- 20150430
-last_month <- 201504
+last_day <- 20190830
+last_month <- 201908
 
 FF_daily <- FF_daily %>% subset(subset = Date <= last_day & Date >= first_day)
 FF_monthly <- FF_monthly %>% subset(subset = Date <= last_month & Date >= first_month)
@@ -73,20 +74,20 @@ jarque.test(as.vector(ARMA_model_m$residuals))
 var_m$ARMA_var <- c(fitted(ARMA_model_m)[-1], forecast(ARMA_model_m, h = 1)$mean)
 
 # Scenario 3: EWMA Model
-n <- 0.94
+lambda <- 0.937456814037826
 var_m$EWMA_var <- c(1:n_months)
 for (i in 1:n_months) {
   if (i == 1) var_m$EWMA_var[i] <- var_m$variance[i]
   else {
     var_m$EWMA_var[i] <- 
-      n * var_m$EWMA_var[i - 1] + (1 - n) * var_m$variance[i]
+      lambda * var_m$EWMA_var[i - 1] + (1 - lambda) * var_m$variance[i]
   }
 }
 
 # Scenario 4: GARCH
-omega = 0.000001
-alpha = 0.074715
-beta = 0.9175
+omega = 0.00000125947711345891
+alpha = 0.0986757938205847
+beta = 0.890202868683846
 var_m$Garch_var <- c(1:n_months)
 var_m$Garch_var[1] <- var_m$variance[1]
 for (i in 2:n_months) {
@@ -163,14 +164,28 @@ for (i in 2:n_months) {
 tot_ret_m[n_months,]
 
 # ***** Plot market and VM returns on log scale *****
+scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
+           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
+           20000,30000,40000,50000,60000,70000,80000,90000,100000)
+dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
 ggplot(tot_ret_m, aes(x = Date)) +
   geom_line(aes(y=Mkt, color = "Buy and Hold")) +
   geom_line(aes(y=var_managed, color = "Realized Variance")) +
-  geom_line(aes(y=vol_managed, color = "ARMA")) +
-  geom_line(aes(y=ARMA_var_managed, color = "EWMA")) +
-  geom_line(aes(y=EWMA_var_managed, color = "GARCH")) +
-  scale_y_log10() +
-  theme_stata() + 
+  geom_line(aes(y=ARMA_var_managed, color = "ARMA")) +
+  geom_line(aes(y=EWMA_var_managed, color = "EWMA")) +
+  geom_line(aes(y=GARCH_var_managed, color = "GARCH")) +
+  scale_x_date(limits = as.Date(c("1926-7-1", "2019-8-1")),
+               expand = c(0,0),
+               breaks = dates,
+               labels = format(dates, "%Y"),
+               minor_breaks = NULL) +
+  scale_y_continuous(trans = "log10",
+                     breaks = trans_breaks('log10', function(x) 10^x),
+                     minor_breaks = scale,
+                     labels = trans_format('log10', math_format(10^.x)),
+                     limits = c(0.1,100000),
+                     expand = c(0,0)) +
+  theme(legend.position="bottom") +
   ggtitle("Cumulative Performance") + 
   xlab("Date") +
   ylab("Performance") +
@@ -209,11 +224,14 @@ for (i in 1:length(names)) {
     (mean(returns_m[,names[i]] - returns_m$rf)) / 
     (sqrt(trading_months) * sd(returns_m[,names[i]]))
   reg_output_m["Appr_Ratio", i] <- sqrt(trading_months) * 
-    reg_output_m["alpha_mkt", i] / reg_output["RMSE", i]
+    reg_output_m["alpha_mkt", i] / reg_output_m["RMSE", i]
   reg_output_m["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
 }
 
 round(reg_output_m, 2)
+
+# Analysis of times when var managed does work well and whether improved strategies perform better
+
 
 ################################################################################
 #******************************** Custom Level ********************************#
