@@ -231,6 +231,17 @@ for (i in 1:length(names)) {
 round(reg_output_m, 2)
 
 # Analysis of times when var managed does work well and whether improved strategies perform better
+test <- returns_m
+test$weight <- test$var_managed / test$Mkt
+test$Mkt_performance <- tot_ret_m$Mkt[-1]
+test$var_performance <- tot_ret_m$var_managed[-1]
+test$ARMA_performance <- tot_ret_m$ARMA_var_managed[-1]
+test$EWMA_performance <- tot_ret_m$EWMA_var_managed[-1]
+test$GARCH_performance <- tot_ret_m$GARCH_var_managed[-1]
+write_excel_csv(test, "C:/Users/stefa/Desktop/output.csv")
+
+apply(returns_m[2:7], 2, quantile, probs = c(0.01, 0.05, 0.1, 0.2))
+filter(returns_m, var_managed < -10 & var_managed/Mkt > 2)
 
 
 ################################################################################
