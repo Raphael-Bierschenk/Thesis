@@ -85,14 +85,13 @@ for (i in 1:n_months) {
 }
 
 # Scenario 4: GARCH
-omega = 0.00000125947711345891
+omega = 0.00000125947711345891*10000
 alpha = 0.0986757938205847
 beta = 0.890202868683846
 var_m$Garch_var <- c(1:n_months)
 var_m$Garch_var[1] <- var_m$variance[1]
 for (i in 2:n_months) {
-  var_m$Garch_var[i] <- omega + alpha*var_m$variance[i]
-  + beta*var_m$Garch_var[i-1]
+  var_m$Garch_var[i] <- omega + alpha*var_m$variance[i] + beta*var_m$Garch_var[i-1]
 }
 
 # Strategy Names
@@ -211,13 +210,14 @@ for (i in 1:length(names)) {
   reg_FF3_m[[i]] <- lm(a ~ b + b1 + b2)
 }
 
-output_names <- c("alpha_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
+output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
 reg_output_m <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
 colnames(reg_output_m) <- names
 rownames(reg_output_m) <- output_names
 
 for (i in 1:length(names)) {
   reg_output_m["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
+  reg_output_m["beta_mkt", i] <- reg_mkt_m[[i]]$coefficients[2]
   reg_output_m["R^2_mkt", i] <- summary(reg_mkt_m[[i]])$r.squared
   reg_output_m["RMSE", i] <- sigma(reg_mkt_m[[i]])
   reg_output_m["SR", i] <- trading_months * 
@@ -228,20 +228,109 @@ for (i in 1:length(names)) {
   reg_output_m["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
 }
 
-round(reg_output_m, 2)
+round(reg_output_m, 4)
 
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
-test$weight <- test$var_managed / test$Mkt
+test$weight <- (test$var_managed - test$rf) / (test$Mkt - test$rf)
+  
+filter(test, var_managed < -10 & weight > 2)
+
+# Idea: Look at correlations between Mkt and other strategies and compare it to correlations in extreme periods
+# The lower the correlation to Mkt, the better the strategy because it acts less like var_managed then
+# Fact: correlation between Mkt and strategy is almost equal to regression beta
+# This is due to Variance of Mkt-rf and strategy almost being equal (Var(Mkt)=Var(strategy))
+
+# Function RMSD: Root Mean Square Deviation
+RMSD <- function (x) {
+  n <- ncol(x)
+  matrix <- matrix(nrow = n, ncol = n)
+  for (i in 1:n) {
+    for (j in 1:n) {
+      matrix[i,j] <- sqrt(mean((x[,i]-x[,j])^2))
+    }
+  }
+  row.names(matrix) <- colnames(x)
+  colnames(matrix) <- colnames(x)
+  return(matrix)
+}
+
+cor(returns_m[c(2,4:7)])
+
+# 1
+extreme_period <- filter(test, Mkt < 0 & weight > 1)
+cor(returns_m[c(2,4:7)])
+cor(extreme_period[c(2,4:7)])
+# Results for periods of negative return and weight > 1
+# No. of obs. = 185
+# Var and ARMA much higher corr to Mkt, ARMA higher corr to Var
+# EWMA and GARCH lower corr to Mkt and lower corr to Var
+#  -> behave less like Var -> better during these periods
+
+# 2
+extreme_period <- print(filter(test, Mkt < -5 & weight > 1))
+cor(returns_m[c(2,4:7)])
+cor(extreme_period[c(2,4:7)])
+# Results for periods of Mkt returns < -5% and weight > 1
+# No. of obs. = 24
+# Var and ARMA slightly higher corr to Mkt, ARMA lower corr to Var
+# EWMA and GARCH basically uncorrelated to Mkt and strikingly lower corr to Var
+#  -> behave much less like Var -> much better during these periods
+
+# 3
+extreme_period <- print(filter(test, var_managed < -10 & weight > 1))
+cor(returns_m[c(2,4:7)])
+cor(extreme_period[c(2,4:7)])
+# Results for periods of var managed returns < -10% and weight > 1
+# No. of obs. = 21
+# Var and ARMA higher corr to Mkt, ARMA lower corr to Var
+# EWMA and GARCH strikingly lower corr to Mkt and Var
+#  -> behave much less like Var -> much better during these periods
+
+# 4
+extreme_period <- print(filter(test, var_managed < -15 & weight > 1))
+cor(returns_m[c(2,4:7)])
+cor(extreme_period[c(2,4:7)])
+# Results for periods of var managed returns < -15% and weight > 1
+# No. of obs. = 12
+# Var and ARMA higher corr to Mkt, ARMA lower corr to Var
+# With only the most extreme datapoints left, EWMA and GARCH are even negatively correlated to Mkt and var now
+#  -> In most extreme negative cases, EWMA and GARCH behave in the opposite fashion of Var, which is super nice
+
+# 5
+extreme_period <- print(filter(test, var_managed < -10 & weight > 3))
+cor(returns_m[c(2,4:7)])
+cor(extreme_period[c(2,4:7)])
+RMSD(returns_m[c(2,4:7)])
+RMSD(extreme_period[c(2,4:7)])
+# Results for periods of var managed returns < -10% and weight > 3
+# No. of obs. = 11
+# High weights already implies higher correlation -> not that meaningful anymore
+# We take a look at root mean square deviation now
+# RMSD of Var increased by far the most
+# The other three increased not that much
+# Relatively, ARMA increased the most of the three and EWMA the least
+
+# 6
+extreme_period <- print(filter(test, var_managed < -15 & weight > 3))
+cor(returns_m[c(2,4:7)])
+cor(extreme_period[c(2,4:7)])
+RMSD(returns_m[c(2,4:7)])
+RMSD(extreme_period[c(2,4:7)])
+# Results for periods of var managed returns < -15% and weight > 3
+# No. of obs. = 6
+# RMSD of Var increased by far the most
+# ARMA almost doubled, whereas EWMA and GARCH increased by roughly the same percentage
+
+
+
+# Excel Output
 test$Mkt_performance <- tot_ret_m$Mkt[-1]
 test$var_performance <- tot_ret_m$var_managed[-1]
 test$ARMA_performance <- tot_ret_m$ARMA_var_managed[-1]
 test$EWMA_performance <- tot_ret_m$EWMA_var_managed[-1]
 test$GARCH_performance <- tot_ret_m$GARCH_var_managed[-1]
-write_excel_csv(test, "C:/Users/stefa/Desktop/output.csv")
-
-apply(returns_m[2:7], 2, quantile, probs = c(0.01, 0.05, 0.1, 0.2))
-filter(returns_m, var_managed < -10 & var_managed/Mkt > 2)
+write_excel_csv(test, "test_output.csv")
 
 
 ################################################################################
