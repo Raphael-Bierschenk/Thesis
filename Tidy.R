@@ -282,7 +282,7 @@ filter(test, var_managed < -10 & weight > 2)
 # Function RMSD: Root Mean Square Deviation
 RMSD <- function (x) {
   n <- ncol(x)
-  matrix <- matrix(nrow = n, ncol = n)
+  matrix <- matrix(0, nrow = n, ncol = n)
   for (i in 1:n) {
     for (j in 1:n) {
       matrix[i,j] <- sqrt(mean((x[,i]-x[,j])^2))
@@ -290,7 +290,7 @@ RMSD <- function (x) {
   }
   row.names(matrix) <- colnames(x)
   colnames(matrix) <- colnames(x)
-  return(matrix)
+  return(round(matrix,3))
 }
 
 cor(returns_m[c(2,4:7)])
