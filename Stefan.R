@@ -60,35 +60,29 @@ FF_daily$u <- log(1+FF_daily$Mkt/100)
 FF_daily$u_sq <- FF_daily$u^2
 mean(FF_daily$u) # mean of log changes basically zero as required
 
-
-
-# ***** Volatility Estimating - EWMA *****
-lambda = 0.94
+# Calculate EWMA Variances
+lambda = 0.937456814037826
 FF_daily$EWMA_vars <- c(1:nrow(FF_daily))
 FF_daily$EWMA_vars[1] <- FF_daily$u_sq[1]
 for (i in 2:nrow(FF_daily)) {
   FF_daily$EWMA_vars[i] <- lambda*FF_daily$EWMA_vars[i-1]+(1-lambda)*FF_daily$u_sq[i]
 }
 
-# ***** Volatility Estimating - GARCH *****
-omega = 0.000001
-alpha = 0.074715
-beta = 0.9175
+# Calculate GARCH Variances
+omega = 0.00000125947711345891
+alpha = 0.0986757938205847
+beta = 0.890202868683846
 FF_daily$GARCH_vars <- c(1:nrow(FF_daily))
 FF_daily$GARCH_vars[1] <- FF_daily$u_sq[1]
 for (i in 2:nrow(FF_daily)) {
   FF_daily$GARCH_vars[i] <- omega+alpha*FF_daily$u_sq[i]+beta*FF_daily$GARCH_vars[i-1]
 }
 
-test = 1
-for (i in c(1:nrow(FF_daily))) {
-  test = (1+FF_daily$Mkt[i]/100)*test
-}
-test
-
+#########################################################################################################
+# Strategy: Flexible time periods determines by fixed deviation of variance, including min and max length
 vars_flexible <- data.frame(0, 0, 0, 0, 0)
 colnames(vars_flexible) <- c("Index", "Variance", "Volatility", "Mkt", "RF")
-min_days_for_var = 10
+min_days_for_var = 5
 max_days_for_var = 22
 deviation = 0.6
 i = 1
@@ -136,7 +130,7 @@ vars_flexible[nrow(vars_flexible) + 1,] <- df_temp
 
 diff_test <- diff(vars_flexible$Index)
 summary(diff_test)
-sum(diff_test==10)
+sum(diff_test==7)
 
 vars_flexible$`Mkt-RF` <- vars_flexible$Mkt - vars_flexible$RF
 
@@ -208,27 +202,31 @@ lambda = 0.937456814037826
 omega = 0.00000125947711345891
 alpha = 0.0986757938205847
 beta = 0.890202868683846
-interval = 126
+interval = 44
 
 daily_vars <- data.frame(0)
 daily_vars <- data.frame(FF_daily$Date[-c(1:interval)], FF_daily$Mkt[-c(1:interval)], FF_daily$RF[-c(1:interval)])
 colnames(daily_vars) <- c("Date", "Mkt", "RF")
 
 for (i in 1:nrow(daily_vars)) {
-  daily_ewma_var <- c(1:interval)
-  daily_garch_var <- c(1:interval)
-  
-  daily_ewma_var[1] <- FF_daily$u_sq[i]
-  daily_garch_var[1] <- FF_daily$u_sq[i]
-  
-  for (j in 2:interval) {
-    daily_ewma_var[j] <- lambda*daily_ewma_var[j-1]+(1-lambda)*FF_daily$u_sq[i+j-1]
-    daily_garch_var[j] <- omega+beta*daily_garch_var[j-1]+alpha*FF_daily$u_sq[i+j-1]
-  }
-  daily_vars$EWMAvars[i] <- daily_ewma_var[interval]
-  daily_vars$GARCHvars[i] <- daily_garch_var[interval]
+  # Commented: Calculates EWMA and GARCH Vars only for period of interval, otherwise full period
+  #
+  # daily_ewma_var <- c(1:interval)
+  # daily_garch_var <- c(1:interval)
+  # 
+  # daily_ewma_var[1] <- FF_daily$u_sq[i]
+  # daily_garch_var[1] <- FF_daily$u_sq[i]
+  # 
+  # for (j in 2:interval) {
+  #   daily_ewma_var[j] <- lambda*daily_ewma_var[j-1]+(1-lambda)*FF_daily$u_sq[i+j-1]
+  #   daily_garch_var[j] <- omega+beta*daily_garch_var[j-1]+alpha*FF_daily$u_sq[i+j-1]
+  # }
+  # daily_vars$EWMAvars[i] <- daily_ewma_var[interval]
+  # daily_vars$GARCHvars[i] <- daily_garch_var[interval]
   
   daily_vars$Var[i] <- var(FF_daily$Mkt[i:(i+interval)])
+  daily_vars$EWMAvars[i] <- FF_daily$EWMA_vars[i+interval]
+  daily_vars$GARCHvars[i] <- FF_daily$GARCH_vars[i+interval]
 }
 
 daily_vars$EWMAvars <- daily_vars$EWMAvars*10000
@@ -449,11 +447,11 @@ scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,
            20000,30000,40000,50000,60000,70000,80000,90000,100000)
 dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
 ggplot() +
-  geom_line(aes(y=market_returns$c.1.nrow.FF_monthly.., x=market_returns$FF_monthly.Date)) +
-  geom_line(aes(y=tot_ret_VM_Var$c.1..n_var...1.., x=tot_ret_VM_Var$c.as.Date..1926.07.01....vars_flexible_v2_Var.Date., colour="red")) +
-  geom_line(aes(y=tot_ret_VM_EWMA$c.1..n_EWMA...1.., x=tot_ret_VM_EWMA$c.as.Date..1926.07.01....vars_flexible_v2_EWMA.Date., colour="green")) +
-  geom_line(aes(y=tot_ret_VM_GARCH$c.1..n_GARCH...1.., x=tot_ret_VM_GARCH$c.as.Date..1926.07.01....vars_flexible_v2_GARCH.Date., colour="blue")) +
-  scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
+  geom_line(aes(y=market_returns$c.1.nrow.FF_monthly.., x=market_returns$FF_monthly.Date, colour="Buy and Hold")) +
+  geom_line(aes(y=tot_ret_VM_Var$c.1..n_var...1.., x=tot_ret_VM_Var$c.as.Date..1926.07.01....vars_flexible_v2_Var.Date., colour="Realized Variance")) +
+  geom_line(aes(y=tot_ret_VM_EWMA$c.1..n_EWMA...1.., x=tot_ret_VM_EWMA$c.as.Date..1926.07.01....vars_flexible_v2_EWMA.Date., colour="EWMA")) +
+  geom_line(aes(y=tot_ret_VM_GARCH$c.1..n_GARCH...1.., x=tot_ret_VM_GARCH$c.as.Date..1926.07.01....vars_flexible_v2_GARCH.Date., colour="GARCH")) +
+  scale_x_date(limits = as.Date(c("1926-7-1", "2019-8-1")),
                expand = c(0,0),
                breaks = dates,
                labels = format(dates, "%Y"),
@@ -464,7 +462,10 @@ ggplot() +
                      labels = trans_format('log10', math_format(10^.x)),
                      limits = c(0.1,100000),
                      expand = c(0,0)) +
-  ggtitle("Cumulative Performance") + xlab("") + ylab("")
+  theme(legend.position="bottom") +
+  ggtitle("Cumulative Performance") + xlab("") + ylab("") +
+  scale_color_manual(name = "Strategies", values = c("Buy and Hold" = "black", "Realized Variance" = "red",
+                                                     "EWMA" = "green", "GARCH" = "blue"))
 
 reg_flex_Var <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
 reg_flex_EWMA <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_EWMA)
@@ -498,6 +499,11 @@ round(reg_output_flex, 2)
 tot_ret_VM_Var[n_var+1,2]
 tot_ret_VM_EWMA[n_EWMA+1,2]
 tot_ret_VM_GARCH[n_GARCH+1,2]
+
+filter(FF_monthly, Mkt < -10)
+filter(vars_flexible_v2_Var, VMR < -10)
+filter(vars_flexible_v2_EWMA, VMR < -10)
+filter(vars_flexible_v2_GARCH, VMR < -10)
 
 #********************************************************************************************************
 
