@@ -307,8 +307,6 @@ cor(extreme_period[c(2,4:7)])
 
 # 2
 extreme_period <- print(filter(test, Mkt < -5 & weight > 1))
-cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
 # Results for periods of Mkt returns < -5% and weight > 1
 # No. of obs. = 24
 # Var and ARMA slightly higher corr to Mkt, ARMA lower corr to Var
@@ -462,7 +460,6 @@ for (frequ in min_frequ:max_frequ) {
   ewma_max_c <- optimize(EWMA_function_c, interval = c(0, 1), maximum = TRUE, 
                          tol = 0.000000000000001)
   lambda_c <- ewma_max_c$maximum
-  print(lambda_c)
   
   # Use realized variance instead --> does that make sense????
   # Calculate EWMA Variance
@@ -489,11 +486,12 @@ for (frequ in min_frequ:max_frequ) {
     }
     return (sum(GARCH_likelihood))
   }
-  GARCH_max_c <- optimx(c(0.1, 0.9), function(x) GARCH_function_c(x[1], x[2]), 
+  GARCH_max_c <- optimx(c(0.1, 0.9), function(x) GARCH_function_c(x[1], x[2]),
                         method = "Nelder-Mead", control = list(maximize = TRUE))
   alpha_c <- GARCH_max_c$p1
   beta_c <- GARCH_max_c$p2
   omega_c <- max(0,mean(u_sq_c)*(1-alpha_c-beta_c))
+  print(alpha_c)
   
   # Calculate GARCH Variance
   var_c$GARCH_var <- c(1:n_custom)
@@ -607,7 +605,7 @@ for (frequ in min_frequ:max_frequ) {
 }
 
 
-
+s
 ################################################################################
 #******************************** Daily Level ********************************#
 
