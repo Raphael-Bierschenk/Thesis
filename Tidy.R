@@ -45,6 +45,8 @@ FF_monthly$Date <- as.character(FF_monthly$Date)
 FF_monthly$Date <- parse_date_time(FF_monthly$Date, "ym")
 FF_monthly$Date <- ymd(FF_monthly$Date)
 
+FF_daily$u_sq <- log(1+FF_daily$`Mkt-RF`/100)^2
+FF_monthly$u_sq <- log(1+FF_monthly$`Mkt-RF`/100)^2
 
 ################################################################################
 #******************************* Monthly Level *******************************#
@@ -74,24 +76,60 @@ jarque.test(as.vector(ARMA_model_m$residuals))
 var_m$ARMA_var <- c(fitted(ARMA_model_m)[-1], forecast(ARMA_model_m, h = 1)$mean)
 
 # Scenario 3: EWMA Model
-lambda <- 0.937456814037826
-var_m$EWMA_var <- c(1:n_months)
-for (i in 1:n_months) {
-  if (i == 1) var_m$EWMA_var[i] <- var_m$variance[i]
-  else {
-    var_m$EWMA_var[i] <- 
-      lambda * var_m$EWMA_var[i - 1] + (1 - lambda) * var_m$variance[i]
+# Optimize Lambda
+EWMA_function_m <- function(lambda)
+{
+  EWMA_var <- c(1:n_months)
+  EWMA_var[1] <- FF_monthly$u_sq[1]
+  for(i in 2:n_months) {
+    EWMA_var[i] <- lambda * EWMA_var[i-1] + (1 - lambda) * FF_monthly$u_sq[i]
   }
+  EWMA_likelihood <- c(1:(n_months-1))
+  for(i in 1:(n_months-1)) {
+    EWMA_likelihood[i] <- -log(EWMA_var[i])-FF_monthly$u_sq[i+1]/EWMA_var[i]
+  }
+  return (sum(EWMA_likelihood))
 }
+ewma_max_m <- optimize(EWMA_function_m, interval = c(0, 1), maximum = TRUE, 
+                       tol = 0.000000000000001)
+lambda_m <- ewma_max_m$maximum
+
+# Use realized variance instead --> does that make sense????
+# Calculate EWMA Variance
+var_m$EWMA_var <- c(1:n_months)
+var_m$EWMA_var[1] <- var_m$variance[1]
+for (i in 2:n_months) {
+  var_m$EWMA_var[i] <- lambda_m * var_m$EWMA_var[i - 1] + (1 - lambda_m) * 
+    var_m$variance[i]
+  }
 
 # Scenario 4: GARCH
-omega = 0.00000125947711345891*10000
-alpha = 0.0986757938205847
-beta = 0.890202868683846
-var_m$Garch_var <- c(1:n_months)
-var_m$Garch_var[1] <- var_m$variance[1]
+# Optimize Parameter
+GARCH_function_m <- function(alpha, beta)
+{
+  omega <- max(0,mean(FF_monthly$u_sq)*(1-alpha-beta))
+  GARCH_var <- c(1:n_months)
+  GARCH_var[1] <- FF_monthly$u_sq[1]
+  for(i in 2:n_months) {
+    GARCH_var[i] <- omega + beta*GARCH_var[i-1] + alpha*FF_monthly$u_sq[i]
+  }
+  GARCH_likelihood <- c(1:(n_months - 1))
+  for(i in 1:(n_months-1)) {
+    GARCH_likelihood[i] <- -log(GARCH_var[i])-FF_monthly$u_sq[i+1]/GARCH_var[i]
+  }
+  return (sum(GARCH_likelihood))
+}
+GARCH_max_m <- optimx(c(0.1, 0.9), function(x) GARCH_function_m(x[1], x[2]), 
+                                   method = "Nelder-Mead", control = list(maximize = TRUE))
+alpha_m <- GARCH_max_m$p1
+beta_m <- GARCH_max_m$p2
+omega_m <- max(0,mean(FF_monthly$u_sq)*(1-alpha_m-beta_m))
+
+# Calculate GARCH Variance
+var_m$GARCH_var <- c(1:n_months)
+var_m$GARCH_var[1] <- var_m$variance[1]
 for (i in 2:n_months) {
-  var_m$Garch_var[i] <- omega + alpha*var_m$variance[i] + beta*var_m$Garch_var[i-1]
+  var_m$GARCH_var[i] <- omega_m*10000 + alpha_m*var_m$variance[i] + beta_m*var_m$GARCH_var[i-1]
 }
 
 # Strategy Names
@@ -104,7 +142,7 @@ colnames(denom_m) <- names
 denom_m[,1] <- var_m$variance[-n_months]
 denom_m[,2] <- var_m$ARMA_var[-n_months]
 denom_m[,3] <- var_m$EWMA_var[-n_months]
-denom_m[,4] <- var_m$Garch_var[-n_months]
+denom_m[,4] <- var_m$GARCH_var[-n_months]
 
 # Calculate c with Midnight Formula
 c_m <- data.frame(matrix(ncol = length(names)))
@@ -338,7 +376,7 @@ write_excel_csv(test, "test_output.csv")
 
 # Set Up List to Store Outputs from Different Frequencies
 min_frequ <- 4
-max_frequ <- 30
+max_frequ <- 50
 reg_output_c <- vector(mode = "list", length = max_frequ - min_frequ)
 quantile_c <- vector(mode = "list", length = max_frequ - min_frequ)
 
@@ -363,7 +401,7 @@ for (frequ in min_frequ:max_frequ) {
   var_c <- var_c %>% mutate(volatility = sqrt(variance))
   
   # Set Up Return Vector and Calculate Market Return
-  returns_c <- data.frame(matrix(ncol = 3 + length(names), nrow = n_custom - 1))
+  returns_c <- data.frame(matrix(ncol = 3 + length(names), nrow = (n_custom-1)))
   colnames(returns_c) <- c("Date", "Mkt", "RF", names)
   
   returns_c <- returns_c %>% mutate(Date = FF_daily$Date[1:(n_custom-1)])
@@ -384,7 +422,17 @@ for (frequ in min_frequ:max_frequ) {
   }
   
   returns_c <- returns_c %>% mutate("Mkt-RF" = Mkt - RF)
-  
+  u_sq_c <- c(1:n_custom)
+  ret_temp <- 0
+  rf_temp <- 0
+  for (a in 1:frequ) {
+    ret_temp <- ((1 + FF_daily$Mkt[a]/100)*(1 + ret_temp/100) - 1)*100
+    rf_temp <- ((1 + FF_daily$RF[a]/100)*(1 + rf_temp/100) - 1)*100
+  }
+  u_sq_c[1] <- log(1 + (ret_temp - rf_temp) / 100)^2
+  u_sq_c[2:n_custom] <- log( 1 + returns_c$`Mkt-RF` / 100)^2
+  u_sq_c <- log(1+u_sq_c/100)^2
+
   # Scenario 2: ARIMA Model
   variance_ts_c <- xts(var_c$variance, order.by = var_c$Date)
   
@@ -398,21 +446,60 @@ for (frequ in min_frequ:max_frequ) {
   var_c$ARMA_var <- c(fitted(ARMA_model_c)[-1], forecast(ARMA_model_c, h = 1)$mean)
   
   # Scenario 3: EWMA Model
-  var_c$EWMA_var <- c(1:n_custom)
-  for (i in 1:n_custom) {
-    if (i == 1) var_c$EWMA_var[i] <- var_c$variance[i]
-    else {
-      var_c$EWMA_var[i] <- 
-        n * var_c$EWMA_var[i - 1] + (1 - n) * var_c$variance[i]
+  EWMA_function_c <- function(lambda)
+  {
+    EWMA_var <- c(1:n_custom)
+    EWMA_var[1] <- u_sq_c[1]
+    for(i in 2:n_custom) {
+      EWMA_var[i] <- lambda * EWMA_var[i-1] + (1 - lambda) * u_sq_c[i]
     }
+    EWMA_likelihood <- c(1:(n_custom-1))
+    for(i in 1:(n_custom-1)) {
+      EWMA_likelihood[i] <- -log(EWMA_var[i])-u_sq_c[i+1]/EWMA_var[i]
+    }
+    return (sum(EWMA_likelihood))
   }
+  ewma_max_c <- optimize(EWMA_function_c, interval = c(0, 1), maximum = TRUE, 
+                         tol = 0.000000000000001)
+  lambda_c <- ewma_max_c$maximum
+  print(lambda_c)
   
-  # Scenario 4: GARCH
-  var_c$Garch_var <- c(1:n_custom)
-  var_c$Garch_var[1] <- var_c$variance[1]
+  # Use realized variance instead --> does that make sense????
+  # Calculate EWMA Variance
+  var_c$EWMA_var <- c(1:n_custom)
+  var_c$EWMA_var[1] <- var_c$variance[1]
   for (i in 2:n_custom) {
-    var_c$Garch_var[i] <- omega + alpha*var_c$variance[i]
-    + beta*var_c$Garch_var[i-1]
+    var_c$EWMA_var[i] <- lambda_c * var_c$EWMA_var[i - 1] + (1 - lambda_c) * 
+      var_c$variance[i]
+  }
+
+  # Scenario 4: GARCH
+  # Optimize Parameters
+  GARCH_function_c <- function(alpha, beta)
+  {
+    omega <- max(0,mean(u_sq_c)*(1-alpha-beta))
+    GARCH_var <- c(1:n_custom)
+    GARCH_var[1] <- u_sq_c[1]
+    for(i in 2:n_custom) {
+      GARCH_var[i] <- omega + beta*GARCH_var[i-1] + alpha*u_sq_c[i]
+    }
+    GARCH_likelihood <- c(1:(n_custom - 1))
+    for(i in 1:(n_custom-1)) {
+      GARCH_likelihood[i] <- -log(GARCH_var[i])-u_sq_c[i+1]/GARCH_var[i]
+    }
+    return (sum(GARCH_likelihood))
+  }
+  GARCH_max_c <- optimx(c(0.1, 0.9), function(x) GARCH_function_c(x[1], x[2]), 
+                        method = "Nelder-Mead", control = list(maximize = TRUE))
+  alpha_c <- GARCH_max_c$p1
+  beta_c <- GARCH_max_c$p2
+  omega_c <- max(0,mean(u_sq_c)*(1-alpha_c-beta_c))
+  
+  # Calculate GARCH Variance
+  var_c$GARCH_var <- c(1:n_custom)
+  var_c$GARCH_var[1] <- var_c$variance[1]
+  for (i in 2:n_custom) {
+    var_c$GARCH_var[i] <- omega_c + alpha_c*var_c$variance[i] + beta_c*var_c$GARCH_var[i-1]
   }
   
   # Set Scale Denominator
@@ -420,10 +507,9 @@ for (frequ in min_frequ:max_frequ) {
   colnames(denom_c) <- names
   
   denom_c[,1] <- var_c$variance[-n_custom]
-  denom_c[,2] <- var_c$volatility[-n_custom]
-  denom_c[,3] <- var_c$ARMA_var[-n_custom]
-  denom_c[,4] <- var_c$EWMA_var[-n_custom]
-  denom_c[,5] <- var_c$Garch_var[-n_custom]
+  denom_c[,2] <- var_c$ARMA_var[-n_custom]
+  denom_c[,3] <- var_c$EWMA_var[-n_custom]
+  denom_c[,4] <- var_c$GARCH_var[-n_custom]
   
   # Calculate c with Midnight Formula
   c_c <- data.frame(matrix(ncol = length(names)))
@@ -456,7 +542,7 @@ for (frequ in min_frequ:max_frequ) {
   # Check Variance and Calculate Weight Quantiles
   print(apply(returns_c[,-c(1,3,(3+length(names)+1))], 2, var))
   mod_num <- frequ + 1 - min_frequ
-  quantiles_c[[mod_num]] <- as.data.frame(apply(weights_c, 2, quantile, 
+  quantile_c[[mod_num]] <- as.data.frame(apply(weights_c, 2, quantile, 
                                                 probs = c(0.5, 0.75, 0.9, 0.99)))
   
   # Calculate Total Return
@@ -500,7 +586,7 @@ for (frequ in min_frequ:max_frequ) {
       reg_output_c[[mod_num]]["alpha_mkt", i] / reg_output_c[[mod_num]]["RMSE", i]
   }
   
-  round(reg_output_c[[frequ]], 2)
+  round(reg_output_c[[mod_num]], 2)
   
   # plot log scale
   ggplot(tot_ret_c, aes(x = Date)) +
@@ -528,7 +614,7 @@ for (frequ in min_frequ:max_frequ) {
 # Calculate Daily Variances
 var_d <- data.frame(matrix(ncol = 2, nrow = n_days))
 colnames(var_d) <- c("Date", "variance")
-var_d$variance <- log(1+FF_daily$Mkt/100)^2
+var_d$variance <- FF_daily$u_sq
 
 var_d <- var_d %>% mutate(volatility = sqrt(variance), Date = FF_daily$Date)
 
@@ -545,21 +631,59 @@ jarque.test(as.vector(ARMA_model_d$residuals))
 var_d$ARMA_var <- c(fitted(ARMA_model_d)[-1], forecast(ARMA_model_d, h = 1)$mean)
 
 # Scenario 3: EWMA Model
-var_d$EWMA_var <- c(1:n_days)
-for (i in 1:n_days) {
-  if (i == 1) var_d$EWMA_var[i] <- var_d$variance[i]
-  else {
-    var_d$EWMA_var[i] <- 
-      n * var_d$EWMA_var[i - 1] + (1 - n) * var_d$variance[i]
+EWMA_function_d <- function(lambda)
+{
+  EWMA_var <- c(1:n_days)
+  EWMA_var[1] <- FF_daily$u_sq[1]
+  for(i in 2:n_days) {
+    EWMA_var[i] <- lambda * EWMA_var[i-1] + (1 - lambda) * FF_daily$u_sq[i]
   }
+  EWMA_likelihood <- c(1:(n_days-1))
+  for(i in 1:(n_days-1)) {
+    EWMA_likelihood[i] <- -log(EWMA_var[i])-FF_daily$u_sq[i+1]/EWMA_var[i]
+  }
+  return (sum(EWMA_likelihood))
+}
+ewma_max_d <- optimize(EWMA_function_d, interval = c(0, 1), maximum = TRUE, 
+                       tol = 0.000000000000001)
+lambda_d <- ewma_max_d$maximum
+
+# Use realized variance instead --> does that make sense????
+# Calculate EWMA Variance
+var_d$EWMA_var <- c(1:n_days)
+var_d$EWMA_var[1] <- var_d$variance[1]
+for (i in 2:n_days) {
+  var_d$EWMA_var[i] <- lambda_d * var_d$EWMA_var[i - 1] + (1 - lambda_d) * 
+    var_d$variance[i]
 }
 
 # Scenario 4: GARCH
-var_d$Garch_var <- c(1:n_days)
-var_d$Garch_var[1] <- var_d$variance[1]
+# Optimize Parameter
+GARCH_function_d <- function(alpha, beta)
+{
+  omega <- max(0,mean(FF_daily$u_sq)*(1-alpha-beta))
+  GARCH_var <- c(1:n_days)
+  GARCH_var[1] <- FF_daily$u_sq[1]
+  for(i in 2:n_days) {
+    GARCH_var[i] <- omega + beta*GARCH_var[i-1] + alpha*FF_daily$u_sq[i]
+  }
+  GARCH_likelihood <- c(1:(n_days - 1))
+  for(i in 1:(n_days-1)) {
+    GARCH_likelihood[i] <- -log(GARCH_var[i])-FF_daily$u_sq[i+1]/GARCH_var[i]
+  }
+  return (sum(GARCH_likelihood))
+}
+GARCH_max_d <- optimx(c(0.1, 0.9), function(x) GARCH_function_d(x[1], x[2]), 
+                      method = "Nelder-Mead", control = list(maximize = TRUE))
+alpha_d <- GARCH_max_d$p1
+beta_d <- GARCH_max_d$p2
+omega_d <- max(0,mean(FF_daily$u_sq)*(1-alpha_d-beta_d))
+
+# Calculate GARCH Variance
+var_d$GARCH_var <- c(1:n_days)
+var_d$GARCH_var[1] <- var_d$variance[1]
 for (i in 2:n_days) {
-  var_d$Garch_var[i] <- omega + alpha*var_d$variance[i]
-  + beta*var_d$Garch_var[i-1]
+  var_d$GARCH_var[i] <- omega_d + alpha_d*var_d$variance[i] + beta_d*var_d$GARCH_var[i-1]
 }
 
 # Set Scale Denominator
@@ -570,7 +694,7 @@ colnames(denom_d) <- names_d
 
 denom_d[,1] <- var_d$ARMA_var[-n_days]
 denom_d[,2] <- var_d$EWMA_var[-n_days]
-denom_d[,3] <- var_d$Garch_var[-n_days]
+denom_d[,3] <- var_d$GARCH_var[-n_days]
 
 # Calculate c with Midnight Formula
 c_d <- data.frame(matrix(ncol = length(names_d)))
@@ -651,6 +775,7 @@ rownames(reg_output_d) <- output_names
 
 for (i in 1:length(names_d)) {
   reg_output_d["alpha_mkt", i] <- reg_mkt_d[[i]]$coefficients[1]
+  reg_output_d["beta_mkt", i] <- reg_mkt_d[[i]]$coefficients[2]
   reg_output_d["R^2_mkt", i] <- summary(reg_mkt_d[[i]])$r.squared
   reg_output_d["RMSE", i] <- sigma(reg_mkt_d[[i]])
   reg_output_d["SR", i] <- 252 * (mean(returns_d[,names_d[i]] - returns_d$RF)) / 
@@ -692,7 +817,7 @@ colnames(appr_c) <- names
 for (i in 1:(max_frequ - min_frequ + 1)) {
   for (j in 1:length(names)) {
     alpha_c[i,j] <- reg_output_c[[i]][1,j]
-    appr_c[i,j] <- reg_output_c[[i]][5,j]
+    appr_c[i,j] <- reg_output_c[[i]][4,j]
   }
 }
 
@@ -706,6 +831,21 @@ ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
   xlab("Frequency in Days") + 
   ylab("Alpha (in %)") +
   ylim(0, 6) +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
+
+ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
+  geom_line(aes(y=var_managed, col = "Realized Variance")) +
+  geom_line(aes(y=ARMA_var_managed, col = "ARMA")) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  theme_stata() + 
+  ggtitle("Appraisal Ratio (MKT) Depending on Frequency") +
+  xlab("Frequency in Days") + 
+  ylab("Appraisal Ratio") +
+  ylim(0, 0.5) +
   scale_color_manual(name = "Strategies", 
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 

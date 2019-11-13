@@ -86,6 +86,26 @@ ewma_function_monthly <- function(lambda)
 print(ewma_max_monthly <- optimize(ewma_function_monthly, interval = c(0, 1), maximum = TRUE, tol = 0.000000000000001))
 lambda_monthly <- ewma_max_monthly$maximum
 
+################## Alternative
+ewma_function_monthly1 <- function(lambda)
+{
+  ewma_variances <- c(1:n_months)
+  ewma_variances[1] <- var_m$variance[1]
+  for(i in 2:n_months) {
+    ewma_variances[i] <- lambda*ewma_variances[i-1] + (1-lambda)*var_m$variance[i]
+  }
+  ewma_likelihood <- c(1:(n_months-1))
+  for(i in 1:(n_months-1)) {
+    ewma_likelihood[i] <- -log(ewma_variances[i])-var_m$variance[i+1]/ewma_variances[i]
+  }
+  return (sum(ewma_likelihood))
+}
+print(ewma_max_monthly1 <- optimize(ewma_function_monthly1, interval = c(0, 1), maximum = TRUE, tol = 0.000000000000001))
+lambda_monthly1 <- ewma_max_monthly1$maximum
+
+
+
+
 # GARCH daily
 long_term_variance <- mean(FF_daily$u_sq)
 garch_function_daily <- function(alpha, beta)
@@ -109,23 +129,23 @@ beta_daily <- garch_max_daily$p2
 omega_daily <- max(0,long_term_variance*(1-alpha_daily-beta_daily))
 
 # GARCH monthly
-long_term_variance <- mean(FF_monthly$u_sq)
-garch_function_monthly <- function(alpha, beta)
+long_term_variance1 <- mean(var_m$variance)
+garch_function_monthly1 <- function(alpha, beta)
 {
-  omega <- max(0,long_term_variance*(1-alpha-beta))
-  garch_variances <- c(1:nrow(FF_monthly))
-  garch_variances[1] <- FF_monthly$u_sq[1]
+  omega <- max(0,long_term_variance1*(1-alpha-beta))
+  garch_variances <- c(1:n_months)
+  garch_variances[1] <- var_m$variance[1]
   for(i in 2:nrow(FF_monthly)) {
-    garch_variances[i] <- omega + beta*garch_variances[i-1] + alpha*FF_monthly$u_sq[i]
+    garch_variances[i] <- omega + beta*garch_variances[i-1] + alpha*var_m$variance[i]
   }
-  garch_likelihood <- c(1:(nrow(FF_monthly)-1))
-  for(i in 1:(nrow(FF_monthly)-1)) {
-    garch_likelihood[i] <- -log(garch_variances[i])-FF_monthly$u_sq[i+1]/garch_variances[i]
+  garch_likelihood <- c(1:(n_months - 1))
+  for(i in 1:(n_months-1)) {
+    garch_likelihood[i] <- -log(garch_variances[i])-var_m$variance[i+1]/garch_variances[i]
   }
   return (sum(garch_likelihood))
 }
-print(garch_max_monthly <- optimx(c(0.1, 0.9), function(x) garch_function_monthly(x[1], x[2]), 
+print(garch_max_monthly1 <- optimx(c(0.1, 0.9), function(x) garch_function_monthly1(x[1], x[2]), 
                                 method = "Nelder-Mead", control = list(maximize = TRUE)))
-alpha_monthly <- garch_max_monthly$p1
-beta_monthly <- garch_max_monthly$p2
+alpha_monthly <- garch_max_monthly1$p1
+beta_monthly <- garch_max_monthly1$p2
 omega_monthly <- max(0,long_term_variance*(1-alpha_monthly-beta_monthly))
