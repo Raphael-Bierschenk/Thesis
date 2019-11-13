@@ -16,6 +16,7 @@ library(sweep)
 library(broom)
 library(ggthemes)
 library(moments)
+library(optimx)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -119,11 +120,12 @@ GARCH_function_m <- function(alpha, beta)
   }
   return (sum(GARCH_likelihood))
 }
-GARCH_max_m <- optimx(c(0.1, 0.9), function(x) GARCH_function_m(x[1], x[2]), 
-                                   method = "Nelder-Mead", control = list(maximize = TRUE))
+GARCH_max_m <- optimx(c(0.1, 0.9), function(x) GARCH_function_m(x[1], x[2]), lower = c(0,0), upper = c(1,1),
+                                   method = "L-BFGS-B", control = list(maximize = TRUE))
 alpha_m <- GARCH_max_m$p1
 beta_m <- GARCH_max_m$p2
 omega_m <- max(0,mean(FF_monthly$u_sq)*(1-alpha_m-beta_m))
+?optimx
 
 # Calculate GARCH Variance
 var_m$GARCH_var <- c(1:n_months)
