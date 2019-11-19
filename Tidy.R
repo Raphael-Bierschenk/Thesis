@@ -67,11 +67,11 @@ plot(var_m$volatility * sqrt(trading_months), type = "l")
 # Scenario 2: ARIMA Model
 variance_ts_m <- xts(var_m$variance, order.by = FF_monthly$Date)
 
-Acf(variance_ts_m, lag = 22)
+Acf(variance_ts_m, lag = 30)
 Pacf(variance_ts_m, lag = 22)
 
 # DISCUSS: aic and bic yield different optimal models --> should we mention?
-ARMA_model_m <- auto.arima(variance_ts_m, d = 0, stepwise = FALSE)
+ARMA_model_m <- auto.arima(variance_ts_m, d = 1, stepwise = FALSE)
 jarque.test(as.vector(ARMA_model_m$residuals))
 
 var_m$ARMA_var <- c(fitted(ARMA_model_m)[-1], forecast(ARMA_model_m, h = 1)$mean)
@@ -120,22 +120,25 @@ GARCH_function_m <- function(alpha, beta)
   }
   return (sum(GARCH_likelihood))
 }
-GARCH_max_m <- optimx(c(0.1, 0.9), function(x) GARCH_function_m(x[1], x[2]), lower = c(0,0), upper = c(1,1),
-                                   method = "L-BFGS-B", control = list(maximize = TRUE))
+
+GARCH_max_m <- optimx(c(0.1, 0.9), function(x) GARCH_function_m(x[1], x[2]), 
+                      method = "Nelder-Mead", control = list(maximize = TRUE))
 alpha_m <- GARCH_max_m$p1
 beta_m <- GARCH_max_m$p2
 omega_m <- max(0,mean(FF_monthly$u_sq)*(1-alpha_m-beta_m))
-?optimx
 
 # Calculate GARCH Variance
 var_m$GARCH_var <- c(1:n_months)
-var_m$GARCH_var[1] <- var_m$variance[1]
+var_m$GARCH_var[1] <- FF_monthly$u_sq[1]
 for (i in 2:n_months) {
-  var_m$GARCH_var[i] <- omega_m*10000 + alpha_m*var_m$variance[i] + beta_m*var_m$GARCH_var[i-1]
+  var_m$GARCH_var[i] <- omega_m +
+    alpha_m*FF_monthly$u_sq[i] + beta_m * var_m$GARCH_var[i-1]
 }
+# rescale omega --> CAN WE ARGUE FOR THAT??
 
 # Strategy Names
-names <- c("var_managed", "ARMA_var_managed", "EWMA_var_managed", "GARCH_var_managed")
+names <- c("var_managed","ARMA_var_managed", "EWMA_var_managed",
+           "GARCH_var_managed")
 
 # Set Scale Denominator
 denom_m <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
@@ -179,7 +182,7 @@ for (i in 1:(n_months-1)) {
   }
 }
 
-# Check Variance and Calculate Weight Quantiles
+# Check Variance
 print(apply(returns_m[,-c(1,3)], 2, var))
 quantile_m <- as.data.frame(apply(weights_m, 2, quantile, 
                                   probs = c(0.5, 0.75, 0.9, 0.99)))
@@ -270,6 +273,18 @@ for (i in 1:length(names)) {
 
 round(reg_output_m, 4)
 
+# Analysis of Results
+stat_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
+                "Q3", "Max")
+stat_ret_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
+                            dimnames = list(stat_names, names)))
+stat_ret_m[1,] <- apply(returns_m[,names], 2, mean)
+stat_ret_m[2,] <- apply(returns_m[,names], 2, sd)
+stat_ret_m[3,] <- apply(returns_m[,names], 2, skewness)
+stat_ret_m[4,] <- apply(returns_m[,names], 2, kurtosis)
+stat_ret_m[5:9,] <- as.data.frame(apply(returns_m[,names], 2, quantile))
+
+round(stat_ret_m, 4)
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
 test$weight <- (test$var_managed - test$rf) / (test$Mkt - test$rf)
@@ -431,8 +446,14 @@ for (frequ in min_frequ:max_frequ) {
   }
   u_sq_c[1] <- log(1 + (ret_temp - rf_temp) / 100)^2
   u_sq_c[2:n_custom] <- log( 1 + returns_c$`Mkt-RF` / 100)^2
-  u_sq_c <- log(1+u_sq_c/100)^2
 
+  # Calculate Simple Variance
+  var_c$simple_6 <- c(1:n_custom)
+  var_c$simple_6[1] <- var_c$variance[1]
+  for (i in 2:n_custom) {
+    var_c$simple_6[i] <- mean(var_c$variance[(i-min(6,i)+1):i])
+  }
+  
   # Scenario 2: ARIMA Model
   variance_ts_c <- xts(var_c$variance, order.by = var_c$Date)
   
@@ -488,19 +509,21 @@ for (frequ in min_frequ:max_frequ) {
     }
     return (sum(GARCH_likelihood))
   }
-  GARCH_max_c <- optimx(c(0.1, 0.9), function(x) GARCH_function_c(x[1], x[2]),
-                        method = "Nelder-Mead", control = list(maximize = TRUE))
+  GARCH_max_c <- optimx(c(0.1, 0.9), function(x) GARCH_function_c(x[1], x[2]), 
+                      method = "Nelder-Mead", control = list(maximize = TRUE))
   alpha_c <- GARCH_max_c$p1
   beta_c <- GARCH_max_c$p2
   omega_c <- max(0,mean(u_sq_c)*(1-alpha_c-beta_c))
-  print(alpha_c)
+  print(omega_c)
   
   # Calculate GARCH Variance
   var_c$GARCH_var <- c(1:n_custom)
-  var_c$GARCH_var[1] <- var_c$variance[1]
+  var_c$GARCH_var[1] <- u_sq_c[1]
   for (i in 2:n_custom) {
-    var_c$GARCH_var[i] <- omega_c + alpha_c*var_c$variance[i] + beta_c*var_c$GARCH_var[i-1]
+    var_c$GARCH_var[i] <- omega_c +
+      alpha_c*u_sq_c[i] + beta_c*var_c$GARCH_var[i-1]
   }
+  # CAN WE ARGUE FOR THAT
   
   # Set Scale Denominator
   denom_c <- data.frame(matrix(ncol = length(names), nrow = n_custom - 1))
@@ -607,7 +630,6 @@ for (frequ in min_frequ:max_frequ) {
 }
 
 
-s
 ################################################################################
 #******************************** Daily Level ********************************#
 
@@ -617,6 +639,13 @@ colnames(var_d) <- c("Date", "variance")
 var_d$variance <- FF_daily$u_sq
 
 var_d <- var_d %>% mutate(volatility = sqrt(variance), Date = FF_daily$Date)
+
+# simple average
+var_d$simple_6 <- c(1:n_days)
+var_d$simple_6[1] <- var_d$variance[1]
+for (i in 2:n_days) {
+  var_d$simple_6[i] <- mean(var_d$variance[(i-min(6,i)+1):i])
+}
 
 # Scenario 2: ARIMA Model
 variance_ts_d <- xts(var_d$variance, order.by = FF_daily$Date)
