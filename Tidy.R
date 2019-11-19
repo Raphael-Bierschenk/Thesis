@@ -236,6 +236,49 @@ ggplot(tot_ret_m, aes(x = Date)) +
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
 
+# Calculate Drawdowns
+for (i in 1:nrow(tot_ret_m)) {
+  if (i==1) {
+    tot_ret_m$DD_Mkt[i] <- 0
+    tot_ret_m$DD_var_managed[i] <- 0
+    tot_ret_m$DD_ARMA_var_managed[i] <- 0
+    tot_ret_m$DD_EWMA_var_managed[i] <- 0
+    tot_ret_m$DD_GARCH_var_managed[i] <- 0
+  }
+  else {
+    tot_ret_m$DD_Mkt[i] <- min(0,(tot_ret_m$Mkt[i]-max(tot_ret_m$Mkt[1:i]))/
+                                 max(tot_ret_m$Mkt[1:i]))
+    tot_ret_m$DD_var_managed[i] <- min(0,(tot_ret_m$var_managed[i]-max(tot_ret_m$var_managed[1:i]))/
+                                         max(tot_ret_m$var_managed[1:i]))
+    tot_ret_m$DD_ARMA_var_managed[i] <- min(0,(tot_ret_m$ARMA_var_managed[i]-max(tot_ret_m$ARMA_var_managed[1:i]))/
+                                              max(tot_ret_m$ARMA_var_managed[1:i]))
+    tot_ret_m$DD_EWMA_var_managed[i] <- min(0,(tot_ret_m$EWMA_var_managed[i]-max(tot_ret_m$EWMA_var_managed[1:i]))/
+                                              max(tot_ret_m$EWMA_var_managed[1:i]))
+    tot_ret_m$DD_GARCH_var_managed[i] <- min(0,(tot_ret_m$GARCH_var_managed[i]-max(tot_ret_m$GARCH_var_managed[1:i]))/
+                                               max(tot_ret_m$GARCH_var_managed[1:i]))
+  }
+}
+
+ggplot(tot_ret_m, aes(x = Date)) +
+  geom_line(aes(y=DD_Mkt, color = "Buy and Hold")) +
+  geom_line(aes(y=DD_var_managed, color = "Realized Variance")) +
+  geom_line(aes(y=DD_ARMA_var_managed, color = "ARMA")) +
+  geom_line(aes(y=DD_EWMA_var_managed, color = "EWMA")) +
+  geom_line(aes(y=DD_GARCH_var_managed, color = "GARCH")) +
+  scale_x_date(limits = as.Date(c("1926-7-1", "2019-8-1")),
+               expand = c(0,0),
+               breaks = dates,
+               labels = format(dates, "%Y"),
+               minor_breaks = NULL) +
+  theme(legend.position="bottom") +
+  ggtitle("Drawdown") + 
+  xlab("Date") +
+  ylab("Drawdown") +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
+
 # Compute Alpha and Ratios
 reg_mkt_m <- vector(mode = "list", length = length(names))
 reg_FF3_m <- vector(mode = "list", length = length(names))
