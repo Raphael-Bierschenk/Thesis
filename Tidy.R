@@ -125,7 +125,6 @@ GARCH_max_m <- optimx(c(0.1, 0.9), function(x) GARCH_function_m(x[1], x[2]), low
 alpha_m <- GARCH_max_m$p1
 beta_m <- GARCH_max_m$p2
 omega_m <- max(0,mean(FF_monthly$u_sq)*(1-alpha_m-beta_m))
-?optimx
 
 # Calculate GARCH Variance
 var_m$GARCH_var <- c(1:n_months)
@@ -243,11 +242,16 @@ for (i in 1:nrow(tot_ret_m)) {
     tot_ret_m$DD_GARCH_var_managed[i] <- 0
   }
   else {
-    tot_ret_m$DD_Mkt[i] <- min(0,(tot_ret_m$Mkt[i]-max(tot_ret_m$Mkt[1:i]))/max(tot_ret_m$Mkt[1:i]))
-    tot_ret_m$DD_var_managed[i] <- min(0,(tot_ret_m$var_managed[i]-max(tot_ret_m$var_managed[1:i]))/max(tot_ret_m$var_managed[1:i]))
-    tot_ret_m$DD_ARMA_var_managed[i] <- min(0,(tot_ret_m$ARMA_var_managed[i]-max(tot_ret_m$ARMA_var_managed[1:i]))/max(tot_ret_m$ARMA_var_managed[1:i]))
-    tot_ret_m$DD_EWMA_var_managed[i] <- min(0,(tot_ret_m$EWMA_var_managed[i]-max(tot_ret_m$EWMA_var_managed[1:i]))/max(tot_ret_m$EWMA_var_managed[1:i]))
-    tot_ret_m$DD_GARCH_var_managed[i] <- min(0,(tot_ret_m$GARCH_var_managed[i]-max(tot_ret_m$GARCH_var_managed[1:i]))/max(tot_ret_m$GARCH_var_managed[1:i]))
+    tot_ret_m$DD_Mkt[i] <- min(0,(tot_ret_m$Mkt[i]-max(tot_ret_m$Mkt[1:i]))/
+                                 max(tot_ret_m$Mkt[1:i]))
+    tot_ret_m$DD_var_managed[i] <- min(0,(tot_ret_m$var_managed[i]-max(tot_ret_m$var_managed[1:i]))/
+                                         max(tot_ret_m$var_managed[1:i]))
+    tot_ret_m$DD_ARMA_var_managed[i] <- min(0,(tot_ret_m$ARMA_var_managed[i]-max(tot_ret_m$ARMA_var_managed[1:i]))/
+                                              max(tot_ret_m$ARMA_var_managed[1:i]))
+    tot_ret_m$DD_EWMA_var_managed[i] <- min(0,(tot_ret_m$EWMA_var_managed[i]-max(tot_ret_m$EWMA_var_managed[1:i]))/
+                                              max(tot_ret_m$EWMA_var_managed[1:i]))
+    tot_ret_m$DD_GARCH_var_managed[i] <- min(0,(tot_ret_m$GARCH_var_managed[i]-max(tot_ret_m$GARCH_var_managed[1:i]))/
+                                               max(tot_ret_m$GARCH_var_managed[1:i]))
   }
 }
 
