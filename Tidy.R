@@ -356,9 +356,9 @@ RMSD <- function (x) {
 cor(returns_m[c(2,4:7)])
 
 # 1
-extreme_period <- filter(test, Mkt < 0 & weight > 1)
+extreme_period_1 <- filter(test, Mkt < 0 & weight > 1)
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_1[c(2,4:7)])
 # Results for periods of negative return and weight > 1
 # No. of obs. = 185
 # Var and ARMA much higher corr to Mkt, ARMA higher corr to Var
@@ -366,7 +366,9 @@ cor(extreme_period[c(2,4:7)])
 #  -> behave less like Var -> better during these periods
 
 # 2
-extreme_period <- print(filter(test, Mkt < -5 & weight > 1))
+extreme_period_2 <- print(filter(test, Mkt < -5 & weight > 1))
+cor(returns_m[c(2,4:7)])
+cor(extreme_period_2[c(2,4:7)])
 # Results for periods of Mkt returns < -5% and weight > 1
 # No. of obs. = 24
 # Var and ARMA slightly higher corr to Mkt, ARMA lower corr to Var
@@ -374,9 +376,9 @@ extreme_period <- print(filter(test, Mkt < -5 & weight > 1))
 #  -> behave much less like Var -> much better during these periods
 
 # 3
-extreme_period <- print(filter(test, var_managed < -10 & weight > 1))
+extreme_period_3 <- print(filter(test, var_managed < -10 & weight > 1))
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_3[c(2,4:7)])
 # Results for periods of var managed returns < -10% and weight > 1
 # No. of obs. = 21
 # Var and ARMA higher corr to Mkt, ARMA lower corr to Var
@@ -384,9 +386,9 @@ cor(extreme_period[c(2,4:7)])
 #  -> behave much less like Var -> much better during these periods
 
 # 4
-extreme_period <- print(filter(test, var_managed < -15 & weight > 1))
+extreme_period_4 <- print(filter(test, var_managed < -15 & weight > 1))
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_4[c(2,4:7)])
 # Results for periods of var managed returns < -15% and weight > 1
 # No. of obs. = 12
 # Var and ARMA higher corr to Mkt, ARMA lower corr to Var
@@ -394,11 +396,11 @@ cor(extreme_period[c(2,4:7)])
 #  -> In most extreme negative cases, EWMA and GARCH behave in the opposite fashion of Var, which is super nice
 
 # 5
-extreme_period <- print(filter(test, var_managed < -10 & weight > 3))
+extreme_period_5 <- print(filter(test, var_managed < -10 & weight > 3))
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_5[c(2,4:7)])
 RMSD(returns_m[c(2,4:7)])
-RMSD(extreme_period[c(2,4:7)])
+RMSD(extreme_period_5[c(2,4:7)])
 # Results for periods of var managed returns < -10% and weight > 3
 # No. of obs. = 11
 # High weights already implies higher correlation -> not that meaningful anymore
@@ -408,11 +410,11 @@ RMSD(extreme_period[c(2,4:7)])
 # Relatively, ARMA increased the most of the three and EWMA the least
 
 # 6
-extreme_period <- print(filter(test, var_managed < -15 & weight > 3))
+extreme_period_6 <- print(filter(test, var_managed < -15 & weight > 3))
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_6[c(2,4:7)])
 RMSD(returns_m[c(2,4:7)])
-RMSD(extreme_period[c(2,4:7)])
+RMSD(extreme_period_6[c(2,4:7)])
 # Results for periods of var managed returns < -15% and weight > 3
 # No. of obs. = 6
 # RMSD of Var increased by far the most
