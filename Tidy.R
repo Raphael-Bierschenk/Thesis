@@ -328,9 +328,13 @@ stat_ret_m[4,] <- apply(returns_m[,names], 2, kurtosis)
 stat_ret_m[5:9,] <- as.data.frame(apply(returns_m[,names], 2, quantile))
 
 round(stat_ret_m, 4)
+
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
 test$weight <- (test$var_managed - test$rf) / (test$Mkt - test$rf)
+test$weight_ARMA <- (test$ARMA_var_managed - test$rf) / (test$Mkt - test$rf)
+test$weight_EWMA <- (test$EWMA_var_managed - test$rf) / (test$Mkt - test$rf)
+test$weight_GARCH <- (test$GARCH_var_managed - test$rf) / (test$Mkt - test$rf)
   
 filter(test, var_managed < -10 & weight > 2)
 
@@ -353,13 +357,15 @@ RMSD <- function (x) {
   return(round(matrix,3))
 }
 
-cor(returns_m[c(2,4:7)])
+cor(returns_m[c(2,4:7)]-returns_m[,3])
 
-# Analysis of Correlations
+# Analysis of Correlations and RMSD
 analysis_matrix_rownames <- c("No. of obs.", "Corr Mkt-Var extreme", "Corr Mkt-ARMA extreme",
                               "Corr Mkt-EWMA extreme", "Corr Mkt-GARCH extreme", "Corr Var-ARMA extreme",
-                              "Corr Var-EWMA extreme",  "Corr Var-GARCH extreme")
-analysis_matrix_colnames <- c("Whole Sample","| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
+                              "Corr Var-EWMA extreme", "Corr Var-GARCH extreme", "RMSD Mkt-Var extreme",
+                              "RMSD Mkt-ARMA extreme", "RMSD Mkt-EWMA extreme", "RMSD Mkt-GARCH extreme",
+                              "RMSD Var-ARMA extreme", "RMSD Var-EWMA extreme",  "RMSD Var-GARCH extreme")
+analysis_matrix_colnames <- c("Whole Sample", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
                               "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
 analysis_matrix <- data.frame(matrix(nrow = length(analysis_matrix_rownames), ncol = length(analysis_matrix_colnames)))
 rownames(analysis_matrix) <- analysis_matrix_rownames
@@ -376,7 +382,9 @@ for (i in 1:7) {
     j = i %% 4
   }
   analysis_matrix[i + 1, 1] <- cor(returns_m[c(2,4:7)])[j + col, col]
+  analysis_matrix[i + 8, 1] <- RMSD(returns_m[c(2,4:7)])[j + col, col]
 }
+nrow(filter(test, Mkt<0))
 
 # Extreme Periods
 extreme_periods <- list()
@@ -386,6 +394,7 @@ extreme_periods[[3]] <- filter(test, var_managed < -10 & weight > 1)
 extreme_periods[[4]] <- filter(test, var_managed < -15 & weight > 1)
 extreme_periods[[5]] <- filter(test, var_managed < -10 & weight > 3)
 extreme_periods[[6]] <- filter(test, var_managed < -15 & weight > 3)
+extreme_periods
 
 for (period in 1:length(extreme_periods)) {
   analysis_matrix[1, period + 1] <- nrow(extreme_periods[[period]])
@@ -398,10 +407,55 @@ for (period in 1:length(extreme_periods)) {
       j = i %% 4
     }
     analysis_matrix[i + 1, period + 1] <- cor(extreme_periods[[period]][c(2,4:7)])[j + col, col]
+    analysis_matrix[i + 8, period + 1] <- RMSD(extreme_periods[[period]][c(2,4:7)])[j + col, col]
   }
 }
 
 round(analysis_matrix, 4)
+
+# Analysis of Delta w
+analysis_matrix_rownames_2 <- c("Avg. w - Var", "Avg. w - ARMA", "Avg. w - EWMA", "Avg. w - GARCH", "Avg. abs. delta w - ARMA",
+                                "Avg. abs. delta w - EWMA", "Avg. abs. delta w - GARCH", "Avg. rel. delta w - ARMA",
+                                "Avg. rel. delta w - EWMA", "Avg. rel. delta w - GARCH")
+analysis_matrix_colnames_2 <- c("w > 1", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
+                                "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
+analysis_matrix_2 <- data.frame(matrix(nrow = length(analysis_matrix_rownames_2), ncol = length(analysis_matrix_colnames_2)))
+rownames(analysis_matrix_2) <- analysis_matrix_rownames_2
+colnames(analysis_matrix_2) <- analysis_matrix_colnames_2
+
+analysis_matrix_2[1, 1] <- mean(filter(test, weight > 1)$weight)
+analysis_matrix_2[2, 1] <- mean(filter(test, weight > 1)$weight_ARMA)
+analysis_matrix_2[3, 1] <- mean(filter(test, weight > 1)$weight_EWMA)
+analysis_matrix_2[4, 1] <- mean(filter(test, weight > 1)$weight_GARCH)
+analysis_matrix_2[5, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight)
+analysis_matrix_2[6, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight)
+analysis_matrix_2[7, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight)
+analysis_matrix_2[8, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight) /
+  mean(filter(test, weight > 1)$weight)
+analysis_matrix_2[9, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight) /
+  mean(filter(test, weight > 1)$weight)
+analysis_matrix_2[10, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight) /
+  mean(filter(test, weight > 1)$weight)
+
+for (period in 1:length(extreme_periods)) {
+  analysis_matrix_2[1, period + 1] <- mean(extreme_periods[[period]]$weight)
+  analysis_matrix_2[2, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA)
+  analysis_matrix_2[3, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA)
+  analysis_matrix_2[4, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH)
+  analysis_matrix_2[5, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight)
+  analysis_matrix_2[6, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight)
+  analysis_matrix_2[7, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight)
+  analysis_matrix_2[8, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+  analysis_matrix_2[9, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+  analysis_matrix_2[10, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+}
+
+round(analysis_matrix_2, 4)
+
+
 
 # 1
 # Results for periods of negative return and weight > 1
