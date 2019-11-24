@@ -356,6 +356,7 @@ stat_ret_cost_m[4,] <- apply(returns_cost_m[,names], 2, kurtosis)
 stat_ret_cost_m[5:9,] <- as.data.frame(apply(returns_cost_m[,names], 2, quantile))
 
 round(stat_ret_m, 4)
+<<<<<<< HEAD
 round(stat_ret_cost_m, 4)
 
 stat_weight_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
@@ -424,10 +425,15 @@ ggplot(tot_ret_m, aes(x = Date)) +
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
+=======
+>>>>>>> f6cffdb58994f5914e433c32ba4b2efb4ab17098
 
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
 test$weight <- (test$var_managed - test$rf) / (test$Mkt - test$rf)
+test$weight_ARMA <- (test$ARMA_var_managed - test$rf) / (test$Mkt - test$rf)
+test$weight_EWMA <- (test$EWMA_var_managed - test$rf) / (test$Mkt - test$rf)
+test$weight_GARCH <- (test$GARCH_var_managed - test$rf) / (test$Mkt - test$rf)
   
 filter(test, var_managed < -10 & weight > 2)
 
@@ -450,12 +456,100 @@ RMSD <- function (x) {
   return(round(matrix,3))
 }
 
-cor(returns_m[c(2,4:7)])
+cor(returns_m[c(2,4:7)]-returns_m[,3])
+
+# Analysis of Correlations and RMSD
+analysis_matrix_rownames <- c("No. of obs.", "Corr Mkt-Var extreme", "Corr Mkt-ARMA extreme",
+                              "Corr Mkt-EWMA extreme", "Corr Mkt-GARCH extreme", "Corr Var-ARMA extreme",
+                              "Corr Var-EWMA extreme", "Corr Var-GARCH extreme", "RMSD Mkt-Var extreme",
+                              "RMSD Mkt-ARMA extreme", "RMSD Mkt-EWMA extreme", "RMSD Mkt-GARCH extreme",
+                              "RMSD Var-ARMA extreme", "RMSD Var-EWMA extreme",  "RMSD Var-GARCH extreme")
+analysis_matrix_colnames <- c("Whole Sample", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
+                              "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
+analysis_matrix <- data.frame(matrix(nrow = length(analysis_matrix_rownames), ncol = length(analysis_matrix_colnames)))
+rownames(analysis_matrix) <- analysis_matrix_rownames
+colnames(analysis_matrix) <- analysis_matrix_colnames
+
+# Whole Sample
+analysis_matrix[1,1] <- nrow(returns_m)
+for (i in 1:7) {
+  if (i <= 4) {
+    col = 1
+    j = i
+  } else {
+    col = 2
+    j = i %% 4
+  }
+  analysis_matrix[i + 1, 1] <- cor(returns_m[c(2,4:7)])[j + col, col]
+  analysis_matrix[i + 8, 1] <- RMSD(returns_m[c(2,4:7)])[j + col, col]
+}
+nrow(filter(test, Mkt<0))
+
+# Extreme Periods
+extreme_periods <- list()
+extreme_periods[[1]] <- filter(test, Mkt < 0 & weight > 1)
+extreme_periods[[2]] <- filter(test, Mkt < -5 & weight > 1)
+extreme_periods[[3]] <- filter(test, var_managed < -10 & weight > 1)
+extreme_periods[[4]] <- filter(test, var_managed < -15 & weight > 1)
+extreme_periods[[5]] <- filter(test, var_managed < -10 & weight > 3)
+extreme_periods[[6]] <- filter(test, var_managed < -15 & weight > 3)
+extreme_periods
+
+for (period in 1:length(extreme_periods)) {
+  analysis_matrix[1, period + 1] <- nrow(extreme_periods[[period]])
+  for (i in 1:7) {
+    if (i <= 4) {
+      col = 1
+      j = i
+    } else {
+      col = 2
+      j = i %% 4
+    }
+    analysis_matrix[i + 1, period + 1] <- cor(extreme_periods[[period]][c(2,4:7)])[j + col, col]
+    analysis_matrix[i + 8, period + 1] <- RMSD(extreme_periods[[period]][c(2,4:7)])[j + col, col]
+  }
+}
+
+round(analysis_matrix, 4)
+
+# Analysis of Delta w
+analysis_matrix_rownames_2 <- c("Avg. w - Var", "Avg. w - ARMA", "Avg. w - EWMA", "Avg. w - GARCH", "Avg. rel. delta w - ARMA",
+                                "Avg. rel. delta w - EWMA", "Avg. rel. delta w - GARCH")
+analysis_matrix_colnames_2 <- c("w > 1", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
+                                "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
+analysis_matrix_2 <- data.frame(matrix(nrow = length(analysis_matrix_rownames_2), ncol = length(analysis_matrix_colnames_2)))
+rownames(analysis_matrix_2) <- analysis_matrix_rownames_2
+colnames(analysis_matrix_2) <- analysis_matrix_colnames_2
+
+analysis_matrix_2[1, 1] <- mean(filter(test, weight > 1)$weight)
+analysis_matrix_2[2, 1] <- mean(filter(test, weight > 1)$weight_ARMA)
+analysis_matrix_2[3, 1] <- mean(filter(test, weight > 1)$weight_EWMA)
+analysis_matrix_2[4, 1] <- mean(filter(test, weight > 1)$weight_GARCH)
+analysis_matrix_2[5, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight) /
+  mean(filter(test, weight > 1)$weight)
+analysis_matrix_2[6, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight) /
+  mean(filter(test, weight > 1)$weight)
+analysis_matrix_2[7, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight) /
+  mean(filter(test, weight > 1)$weight)
+
+for (period in 1:length(extreme_periods)) {
+  analysis_matrix_2[1, period + 1] <- mean(extreme_periods[[period]]$weight)
+  analysis_matrix_2[2, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA)
+  analysis_matrix_2[3, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA)
+  analysis_matrix_2[4, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH)
+  analysis_matrix_2[5, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+  analysis_matrix_2[6, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+  analysis_matrix_2[7, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+}
+
+round(analysis_matrix_2, 4)
+
+
 
 # 1
-extreme_period <- filter(test, Mkt < 0 & weight > 1)
-cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
 # Results for periods of negative return and weight > 1
 # No. of obs. = 185
 # Var and ARMA much higher corr to Mkt, ARMA higher corr to Var
@@ -463,7 +557,6 @@ cor(extreme_period[c(2,4:7)])
 #  -> behave less like Var -> better during these periods
 
 # 2
-extreme_period <- print(filter(test, Mkt < -5 & weight > 1))
 # Results for periods of Mkt returns < -5% and weight > 1
 # No. of obs. = 24
 # Var and ARMA slightly higher corr to Mkt, ARMA lower corr to Var
@@ -471,9 +564,6 @@ extreme_period <- print(filter(test, Mkt < -5 & weight > 1))
 #  -> behave much less like Var -> much better during these periods
 
 # 3
-extreme_period <- print(filter(test, var_managed < -10 & weight > 1))
-cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
 # Results for periods of var managed returns < -10% and weight > 1
 # No. of obs. = 21
 # Var and ARMA higher corr to Mkt, ARMA lower corr to Var
@@ -481,9 +571,6 @@ cor(extreme_period[c(2,4:7)])
 #  -> behave much less like Var -> much better during these periods
 
 # 4
-extreme_period <- print(filter(test, var_managed < -15 & weight > 1))
-cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
 # Results for periods of var managed returns < -15% and weight > 1
 # No. of obs. = 12
 # Var and ARMA higher corr to Mkt, ARMA lower corr to Var
@@ -491,11 +578,11 @@ cor(extreme_period[c(2,4:7)])
 #  -> In most extreme negative cases, EWMA and GARCH behave in the opposite fashion of Var, which is super nice
 
 # 5
-extreme_period <- print(filter(test, var_managed < -10 & weight > 3))
+extreme_period_5 <- print(filter(test, var_managed < -10 & weight > 3))
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_5[c(2,4:7)])
 RMSD(returns_m[c(2,4:7)])
-RMSD(extreme_period[c(2,4:7)])
+RMSD(extreme_period_5[c(2,4:7)])
 # Results for periods of var managed returns < -10% and weight > 3
 # No. of obs. = 11
 # High weights already implies higher correlation -> not that meaningful anymore
@@ -505,11 +592,11 @@ RMSD(extreme_period[c(2,4:7)])
 # Relatively, ARMA increased the most of the three and EWMA the least
 
 # 6
-extreme_period <- print(filter(test, var_managed < -15 & weight > 3))
+extreme_period_6 <- print(filter(test, var_managed < -15 & weight > 3))
 cor(returns_m[c(2,4:7)])
-cor(extreme_period[c(2,4:7)])
+cor(extreme_period_6[c(2,4:7)])
 RMSD(returns_m[c(2,4:7)])
-RMSD(extreme_period[c(2,4:7)])
+RMSD(extreme_period_6[c(2,4:7)])
 # Results for periods of var managed returns < -15% and weight > 3
 # No. of obs. = 6
 # RMSD of Var increased by far the most
