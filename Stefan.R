@@ -17,12 +17,9 @@ library(sweep)
 # ***** Import Data *****
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
 FF_monthly <- read_csv("F-F_Research_Data_Factors.CSV", col_names = TRUE, skip = 3)
-VIX_daily <- read_csv("VIXCLS.csv", col_names = TRUE, 
-                      col_types = cols(Date = "D", VIXCLS = "n"))
 
 FF_daily <- FF_daily %>% rename(Date = X1)
 FF_monthly <- FF_monthly %>% rename(Date = X1)
-VIX_daily <- VIX_daily %>% rename(Date = DATE, VIX = VIXCLS)
 
 first_day <- 19260701
 first_month <- 192607
@@ -31,21 +28,10 @@ last_month <- 201908
 
 FF_daily <- FF_daily %>% subset(subset = Date <= last_day & Date >= first_day)
 FF_monthly <- FF_monthly %>% subset(subset = Date <= last_month & Date >= first_month)
-VIX_daily <- VIX_daily %>% subset(subset = Date <= ymd(last_day) & Date >= ymd(first_day))
 
 n_days <- as.integer(count(FF_daily))
 n_months <- as.integer(count(FF_monthly))
 
-
-
-VIX_monthly <- data.frame(matrix(ncol = ncol(VIX_daily), nrow = n_months))
-colnames(VIX_monthly) <- colnames(VIX_daily)
-VIX_monthly <- VIX_monthly %>% 
-for (i in 2:as.integer(count(VIX_daily))) {
-  if (month(VIX_daily$Date[i]) != month(VIX_daily$Date[i-1])) {
-    VIX_monthly$VIX[i] <- VIX_daily$VIX[i]
-  }
-}
 
 # ***** Manipulate Data *****
 FF_monthly <- FF_monthly %>% mutate(Mkt = `Mkt-RF` + RF)
@@ -193,7 +179,7 @@ SR
 appr
 
 #######################################################################################################################
-# Stefan 2. Sache Test
+# Stefan 2. Strategy
 # Calculate EWMA/GARCH Vola daily
 # At a certain deviation, reallocate
 
@@ -526,26 +512,6 @@ filter(vars_flexible_v2_GARCH, VMR < -10)
 
 
 
-
-
-VIX_daily <- VIX_daily[VIX_daily$Date %in% FF_daily$Date,]
-
-VIX_monthly <- data.frame(matrix(ncol = ncol(VIX_daily), nrow = n_months))
-colnames(VIX_monthly) <- colnames(VIX_daily)
-j <- 1
-VIX_monthly <- VIX_monthly %>% mutate(Date = FF_monthly$Date)
-
-for (i in 1:as.integer(count(VIX_daily))) {
-  if (i == 1) {
-    VIX_monthly$VIX[j] <- VIX_daily$VIX[j]
-    j <- j + 1
-    }
-  else if (month(VIX_daily$Date[i]) != month(VIX_daily$Date[i-1])) {
-    VIX_monthly$VIX[j] <- ifelse(!is.na(VIX_daily$VIX[i-1]), 
-                                 VIX_daily$VIX[i-1], VIX_daily$VIX[i])
-    j <- j + 1
-  }
-}
 
 # ***** Calculate Monthly Variances *****
 trading_days <- 22

@@ -414,8 +414,7 @@ for (period in 1:length(extreme_periods)) {
 round(analysis_matrix, 4)
 
 # Analysis of Delta w
-analysis_matrix_rownames_2 <- c("Avg. w - Var", "Avg. w - ARMA", "Avg. w - EWMA", "Avg. w - GARCH", "Avg. abs. delta w - ARMA",
-                                "Avg. abs. delta w - EWMA", "Avg. abs. delta w - GARCH", "Avg. rel. delta w - ARMA",
+analysis_matrix_rownames_2 <- c("Avg. w - Var", "Avg. w - ARMA", "Avg. w - EWMA", "Avg. w - GARCH", "Avg. rel. delta w - ARMA",
                                 "Avg. rel. delta w - EWMA", "Avg. rel. delta w - GARCH")
 analysis_matrix_colnames_2 <- c("w > 1", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
                                 "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
@@ -427,14 +426,11 @@ analysis_matrix_2[1, 1] <- mean(filter(test, weight > 1)$weight)
 analysis_matrix_2[2, 1] <- mean(filter(test, weight > 1)$weight_ARMA)
 analysis_matrix_2[3, 1] <- mean(filter(test, weight > 1)$weight_EWMA)
 analysis_matrix_2[4, 1] <- mean(filter(test, weight > 1)$weight_GARCH)
-analysis_matrix_2[5, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight)
-analysis_matrix_2[6, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight)
-analysis_matrix_2[7, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight)
-analysis_matrix_2[8, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight) /
+analysis_matrix_2[5, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight) /
   mean(filter(test, weight > 1)$weight)
-analysis_matrix_2[9, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight) /
+analysis_matrix_2[6, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight) /
   mean(filter(test, weight > 1)$weight)
-analysis_matrix_2[10, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight) /
+analysis_matrix_2[7, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight) /
   mean(filter(test, weight > 1)$weight)
 
 for (period in 1:length(extreme_periods)) {
@@ -442,14 +438,11 @@ for (period in 1:length(extreme_periods)) {
   analysis_matrix_2[2, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA)
   analysis_matrix_2[3, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA)
   analysis_matrix_2[4, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH)
-  analysis_matrix_2[5, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight)
-  analysis_matrix_2[6, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight)
-  analysis_matrix_2[7, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight)
-  analysis_matrix_2[8, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight) /
+  analysis_matrix_2[5, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight) /
     mean(extreme_periods[[period]]$weight)
-  analysis_matrix_2[9, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight) /
+  analysis_matrix_2[6, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight) /
     mean(extreme_periods[[period]]$weight)
-  analysis_matrix_2[10, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight) /
+  analysis_matrix_2[7, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight) /
     mean(extreme_periods[[period]]$weight)
 }
 
