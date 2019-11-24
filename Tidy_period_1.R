@@ -17,7 +17,6 @@ library(broom)
 library(ggthemes)
 library(moments)
 library(optimx)
-library(stargazer)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -29,8 +28,8 @@ FF_monthly <- FF_monthly %>% rename(Date = X1)
 
 first_day <- 19260701
 first_month <- 192607
-last_day <- 20190830
-last_month <- 201908
+last_day <- 19571231
+last_month <- 195712
 
 FF_daily <- FF_daily %>% subset(subset = Date <= last_day & Date >= first_day)
 FF_monthly <- FF_monthly %>% subset(subset = Date <= last_month & Date >= first_month)
@@ -68,11 +67,11 @@ plot(var_m$volatility * sqrt(trading_months), type = "l")
 # Scenario 2: ARIMA Model
 variance_ts_m <- xts(var_m$variance, order.by = FF_monthly$Date)
 
-Acf(variance_ts_m, lag = 24)
-Pacf(variance_ts_m, lag = 24)
+Acf(variance_ts_m, lag = 30)
+Pacf(variance_ts_m, lag = 22)
 
 # DISCUSS: aic and bic yield different optimal models --> should we mention?
-ARMA_model_m <- auto.arima(variance_ts_m, stepwise = FALSE)
+ARMA_model_m <- auto.arima(variance_ts_m, d = 1, stepwise = FALSE)
 jarque.test(as.vector(ARMA_model_m$residuals))
 
 var_m$ARMA_var <- c(fitted(ARMA_model_m)[-1], forecast(ARMA_model_m, h = 1)$mean)
@@ -102,7 +101,7 @@ var_m$EWMA_var[1] <- var_m$variance[1]
 for (i in 2:n_months) {
   var_m$EWMA_var[i] <- lambda_m * var_m$EWMA_var[i - 1] + (1 - lambda_m) * 
     var_m$variance[i]
-  }
+}
 
 # Scenario 4: GARCH
 # Optimize Parameter
@@ -222,7 +221,7 @@ for (i in 2:n_months) {
       (1 + (returns_m[i-1, names[j]]/100))
     tot_ret_cost_m[i,names[j]] <- tot_ret_cost_m[i-1, names[j]] * 
       (1 + (returns_cost_m[i-1, names[j]]/100))
-    }
+  }
 }
 
 tot_ret_m[n_months,]
@@ -258,129 +257,6 @@ ggplot(tot_ret_m, aes(x = Date)) +
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
-
-# Compute Alpha and Ratios
-reg_mkt_m <- vector(mode = "list", length = length(names))
-reg_FF3_m <- vector(mode = "list", length = length(names))
-reg_mkt_cost_m <- vector(mode = "list", length = length(names))
-reg_FF3_cost_m <- vector(mode = "list", length = length(names))
-b <- trading_months * (returns_m$Mkt - returns_m$rf)
-b1 <- trading_months * (FF_monthly$SMB[-1])
-b2 <- trading_months * (FF_monthly$HML[-1])
-
-for (i in 1:length(names)) {
-  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
-  reg_mkt_m[[i]] <- lm(a ~ b)
-  a <- trading_months * (returns_cost_m[, names[i]] - returns_m$rf)
-  reg_mkt_cost_m[[i]] <- lm(a ~ b)
-}
-
-for (i in 1:length(names)) {
-  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
-  reg_FF3_m[[i]] <- lm(a ~ b + b1 + b2)
-  a <- trading_months * (returns_cost_m[, names[i]] - returns_m$rf)
-  reg_FF3_cost_m[[i]] <- lm(a ~ b + b1 + b2)
-}
-
-output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
-reg_output_m <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
-colnames(reg_output_m) <- names
-rownames(reg_output_m) <- output_names
-
-reg_output_cost_m <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
-colnames(reg_output_cost_m) <- names
-rownames(reg_output_cost_m) <- output_names
-
-for (i in 1:length(names)) {
-  reg_output_m["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
-  reg_output_m["beta_mkt", i] <- reg_mkt_m[[i]]$coefficients[2]
-  reg_output_m["R^2_mkt", i] <- summary(reg_mkt_m[[i]])$r.squared
-  reg_output_m["RMSE", i] <- sigma(reg_mkt_m[[i]])
-  reg_output_m["SR", i] <- trading_months * 
-    (mean(returns_m[,names[i]] - returns_m$rf)) / 
-    (sqrt(trading_months) * sd(returns_m[,names[i]]))
-  reg_output_m["Appr_Ratio", i] <- sqrt(trading_months) * 
-    reg_output_m["alpha_mkt", i] / reg_output_m["RMSE", i]
-  reg_output_m["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
-}
-
-for (i in 1:length(names)) {
-  reg_output_cost_m["alpha_mkt", i] <- reg_mkt_cost_m[[i]]$coefficients[1]
-  reg_output_cost_m["beta_mkt", i] <- reg_mkt_cost_m[[i]]$coefficients[2]
-  reg_output_cost_m["R^2_mkt", i] <- summary(reg_mkt_cost_m[[i]])$r.squared
-  reg_output_cost_m["RMSE", i] <- sigma(reg_mkt_cost_m[[i]])
-  reg_output_cost_m["SR", i] <- trading_months * 
-    (mean(returns_cost_m[,names[i]] - returns_m$rf)) / 
-    (sqrt(trading_months) * sd(returns_cost_m[,names[i]]))
-  reg_output_cost_m["Appr_Ratio", i] <- sqrt(trading_months) * 
-    reg_output_cost_m["alpha_mkt", i] / reg_output_cost_m["RMSE", i]
-  reg_output_cost_m["alpha_FF3", i] <- reg_FF3_cost_m[[i]]$coefficients[1]
-}
-
-stargazer(reg_output_m, type = "text", summary = FALSE)
-stargazer(reg_output_cost_m, type = "text", summary = FALSE)
-
-# Compute Breakeven Cost
-breakeven_function <- function(cost, strategy) {
-  returns_be_m <- c(1:(n_months-1))
-  for (i in 1:(n_months-1)) {
-      returns_be_m[i] <- returns_m[i,names[strategy]] - 
-        w_abs_m[i,names[strategy]] * cost
-  }
-  a <- trading_months * (returns_be_m - returns_m$rf)
-  return(lm(a~b)$coefficients[1])
-}
-
-uniroot(breakeven_function, strategy = 1, lower = 0, upper = 100)$root
-uniroot(breakeven_function, strategy = 2, lower = 0, upper = 100)$root
-uniroot(breakeven_function, strategy = 3, lower = 0, upper = 100)$root
-uniroot(breakeven_function, strategy = 4, lower = 0, upper = 100)$root
-
-# Analysis of Results
-stat_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
-                "Q3", "Max")
-stat_ret_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
-                            dimnames = list(stat_names, names)))
-stat_ret_m[1,] <- apply(returns_m[,names], 2, mean)
-stat_ret_m[2,] <- apply(returns_m[,names], 2, sd)
-stat_ret_m[3,] <- apply(returns_m[,names], 2, skewness)
-stat_ret_m[4,] <- apply(returns_m[,names], 2, kurtosis)
-stat_ret_m[5:9,] <- as.data.frame(apply(returns_m[,names], 2, quantile))
-
-stat_ret_cost_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
-                                dimnames = list(stat_names, names)))
-stat_ret_cost_m[1,] <- apply(returns_cost_m[,names], 2, mean)
-stat_ret_cost_m[2,] <- apply(returns_cost_m[,names], 2, sd)
-stat_ret_cost_m[3,] <- apply(returns_cost_m[,names], 2, skewness)
-stat_ret_cost_m[4,] <- apply(returns_cost_m[,names], 2, kurtosis)
-stat_ret_cost_m[5:9,] <- as.data.frame(apply(returns_cost_m[,names], 2, quantile))
-
-round(stat_ret_m, 4)
-round(stat_ret_cost_m, 4)
-
-stat_weight_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
-                                dimnames = list(stat_names, names)))
-stat_weight_m[1,] <- apply(weights_m[,names], 2, mean)
-stat_weight_m[2,] <- apply(weights_m[,names], 2, sd)
-stat_weight_m[3,] <- apply(weights_m[,names], 2, skewness)
-stat_weight_m[4,] <- apply(weights_m[,names], 2, kurtosis)
-stat_weight_m[5:9,] <- as.data.frame(apply(weights_m[,names], 2, quantile))
-
-round(stat_weight_m, 4)
-
-ggplot(returns_m) +
-  geom_histogram(aes(x=var_managed, color = "Realized Variance"), bins = 100) +
-  geom_histogram(aes(x=ARMA_var_managed, color = "ARMA"), bins = 100) +
-  geom_histogram(aes(x=EWMA_var_managed, color = "EWMA"), bins = 100) +
-  geom_histogram(aes(x=GARCH_var_managed, color = "GARCH"), bins = 100) +
-  xlim(-40,40) +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
-
-################################################################################
-############################## Calculation Stefan ##############################
 
 # Calculate Drawdowns
 for (i in 1:nrow(tot_ret_m)) {
@@ -425,10 +301,114 @@ ggplot(tot_ret_m, aes(x = Date)) +
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
 
+# Compute Alpha and Ratios
+reg_mkt_m <- vector(mode = "list", length = length(names))
+reg_FF3_m <- vector(mode = "list", length = length(names))
+reg_mkt_cost_m <- vector(mode = "list", length = length(names))
+reg_FF3_cost_m <- vector(mode = "list", length = length(names))
+b <- trading_months * (returns_m$Mkt - returns_m$rf)
+b1 <- trading_months * (FF_monthly$SMB[-1])
+b2 <- trading_months * (FF_monthly$HML[-1])
+
+for (i in 1:length(names)) {
+  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
+  reg_mkt_m[[i]] <- lm(a ~ b)
+  a <- trading_months * (returns_cost_m[, names[i]] - returns_m$rf)
+  reg_mkt_cost_m[[i]] <- lm(a ~ b)
+}
+
+for (i in 1:length(names)) {
+  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
+  reg_FF3_m[[i]] <- lm(a ~ b + b1 + b2)
+  a <- trading_months * (returns_cost_m[, names[i]] - returns_m$rf)
+  reg_FF3_cost_m[[i]] <- lm(a ~ b + b1 + b2)
+}
+
+output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
+reg_output_m_p1 <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
+colnames(reg_output_m_p1) <- names
+rownames(reg_output_m_p1) <- output_names
+
+reg_output_cost_m_p1 <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
+colnames(reg_output_cost_m_p1) <- names
+rownames(reg_output_cost_m_p1) <- output_names
+
+for (i in 1:length(names)) {
+  reg_output_m_p1["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
+  reg_output_m_p1["beta_mkt", i] <- reg_mkt_m[[i]]$coefficients[2]
+  reg_output_m_p1["R^2_mkt", i] <- summary(reg_mkt_m[[i]])$r.squared
+  reg_output_m_p1["RMSE", i] <- sigma(reg_mkt_m[[i]])
+  reg_output_m_p1["SR", i] <- trading_months * 
+    (mean(returns_m[,names[i]] - returns_m$rf)) / 
+    (sqrt(trading_months) * sd(returns_m[,names[i]]))
+  reg_output_m_p1["Appr_Ratio", i] <- sqrt(trading_months) * 
+    reg_output_m_p1["alpha_mkt", i] / reg_output_m_p1["RMSE", i]
+  reg_output_m_p1["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
+}
+
+for (i in 1:length(names)) {
+  reg_output_cost_m_p1["alpha_mkt", i] <- reg_mkt_cost_m[[i]]$coefficients[1]
+  reg_output_cost_m_p1["beta_mkt", i] <- reg_mkt_cost_m[[i]]$coefficients[2]
+  reg_output_cost_m_p1["R^2_mkt", i] <- summary(reg_mkt_cost_m[[i]])$r.squared
+  reg_output_cost_m_p1["RMSE", i] <- sigma(reg_mkt_cost_m[[i]])
+  reg_output_cost_m_p1["SR", i] <- trading_months * 
+    (mean(returns_cost_m[,names[i]] - returns_m$rf)) / 
+    (sqrt(trading_months) * sd(returns_cost_m[,names[i]]))
+  reg_output_cost_m_p1["Appr_Ratio", i] <- sqrt(trading_months) * 
+    reg_output_cost_m_p1["alpha_mkt", i] / reg_output_cost_m_p1["RMSE", i]
+  reg_output_cost_m_p1["alpha_FF3", i] <- reg_FF3_cost_m[[i]]$coefficients[1]
+}
+
+round(reg_output_m_p1, 4)
+round(reg_output_cost_m_p1, 4)
+
+# Analysis of Results
+stat_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
+                "Q3", "Max")
+stat_ret_m_p1 <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
+                                dimnames = list(stat_names, names)))
+stat_ret_m_p1[1,] <- apply(returns_m[,names], 2, mean)
+stat_ret_m_p1[2,] <- apply(returns_m[,names], 2, sd)
+stat_ret_m_p1[3,] <- apply(returns_m[,names], 2, skewness)
+stat_ret_m_p1[4,] <- apply(returns_m[,names], 2, kurtosis)
+stat_ret_m_p1[5:9,] <- as.data.frame(apply(returns_m[,names], 2, quantile))
+
+stat_ret_cost_m_p1 <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
+                                     dimnames = list(stat_names, names)))
+stat_ret_cost_m_p1[1,] <- apply(returns_cost_m[,names], 2, mean)
+stat_ret_cost_m_p1[2,] <- apply(returns_cost_m[,names], 2, sd)
+stat_ret_cost_m_p1[3,] <- apply(returns_cost_m[,names], 2, skewness)
+stat_ret_cost_m_p1[4,] <- apply(returns_cost_m[,names], 2, kurtosis)
+stat_ret_cost_m_p1[5:9,] <- as.data.frame(apply(returns_cost_m[,names], 2, quantile))
+
+round(stat_ret_m_p1, 4)
+round(stat_ret_cost_m_p1, 4)
+
+stat_weight_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
+                                   dimnames = list(stat_names, names)))
+stat_weight_m[1,] <- apply(weights_m[,names], 2, mean)
+stat_weight_m[2,] <- apply(weights_m[,names], 2, sd)
+stat_weight_m[3,] <- apply(weights_m[,names], 2, skewness)
+stat_weight_m[4,] <- apply(weights_m[,names], 2, kurtosis)
+stat_weight_m[5:9,] <- as.data.frame(apply(weights_m[,names], 2, quantile))
+
+round(stat_weight_m, 4)
+
+ggplot(returns_m) +
+  geom_histogram(aes(x=var_managed, color = "Realized Variance"), bins = 100) +
+  geom_histogram(aes(x=ARMA_var_managed, color = "ARMA"), bins = 100) +
+  geom_histogram(aes(x=EWMA_var_managed, color = "EWMA"), bins = 100) +
+  geom_histogram(aes(x=GARCH_var_managed, color = "GARCH"), bins = 100) +
+  xlim(-40,40) +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
+
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
 test$weight <- (test$var_managed - test$rf) / (test$Mkt - test$rf)
-  
+
 filter(test, var_managed < -10 & weight > 2)
 
 # Idea: Look at correlations between Mkt and other strategies and compare it to correlations in extreme periods
@@ -587,7 +567,7 @@ for (frequ in min_frequ:max_frequ) {
   }
   u_sq_c[1] <- log(1 + (ret_temp - rf_temp) / 100)^2
   u_sq_c[2:n_custom] <- log( 1 + returns_c$`Mkt-RF` / 100)^2
-
+  
   # Calculate Simple Variance
   var_c$simple_6 <- c(1:n_custom)
   var_c$simple_6[1] <- var_c$variance[1]
@@ -632,7 +612,7 @@ for (frequ in min_frequ:max_frequ) {
     var_c$EWMA_var[i] <- lambda_c * var_c$EWMA_var[i - 1] + (1 - lambda_c) * 
       var_c$variance[i]
   }
-
+  
   # Scenario 4: GARCH
   # Optimize Parameters
   GARCH_function_c <- function(alpha, beta)
@@ -650,7 +630,7 @@ for (frequ in min_frequ:max_frequ) {
     return (sum(GARCH_likelihood))
   }
   GARCH_max_c <- optimx(c(0.1, 0.9), function(x) GARCH_function_c(x[1], x[2]), 
-                      method = "Nelder-Mead", control = list(maximize = TRUE))
+                        method = "Nelder-Mead", control = list(maximize = TRUE))
   alpha_c <- GARCH_max_c$p1
   beta_c <- GARCH_max_c$p2
   omega_c <- max(0,mean(u_sq_c)*(1-alpha_c-beta_c))
@@ -719,7 +699,7 @@ for (frequ in min_frequ:max_frequ) {
   print(apply(returns_c[,-c(1,3,(3+length(names)+1))], 2, var))
   mod_num <- frequ + 1 - min_frequ
   quantile_c[[mod_num]] <- as.data.frame(apply(weights_c, 2, quantile, 
-                                                probs = c(0.5, 0.75, 0.9, 0.99)))
+                                               probs = c(0.5, 0.75, 0.9, 0.99)))
   
   # Calculate Total Return
   tot_ret_c <- data.frame(matrix(ncol = length(names) + 2, nrow = n_custom))
@@ -767,7 +747,7 @@ for (frequ in min_frequ:max_frequ) {
   rownames(reg_output_c[[mod_num]]) <- output_names_c
   
   reg_output_cost_c[[mod_num]] <- data.frame(matrix(ncol = length(names), 
-                                               nrow = length(output_names_c)))
+                                                    nrow = length(output_names_c)))
   colnames(reg_output_cost_c[[mod_num]]) <- names
   rownames(reg_output_cost_c[[mod_num]]) <- output_names_c
   
