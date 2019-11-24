@@ -246,6 +246,11 @@ for (i in c(22, 44, 126, 252, 504))
   quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.1, 0.9))#c(1/44, 1-1/44))
   quantiles
   
+  # if only top or bottom 10%
+  quantiles[1,] <- c(1000, 1000, 1000) # sufficiently large number as max
+  quantiles[2,] <- apply(daily_vars[,7:9], 2, quantile, probs = 0.9)
+  quantiles
+  
   # use the new boundaries
   vars_flexible_v2_Var <- data.frame(ymd("1900/01/01"), 0, 0, 0, 0)
   colnames(vars_flexible_v2_Var) <- c("Date", "Variance", "Volatility", "Mkt", "RF")
