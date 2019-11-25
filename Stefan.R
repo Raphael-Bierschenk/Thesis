@@ -244,7 +244,7 @@ for (i in intervals)
   summary(daily_vars$GARCH_perc_dev)
   
   # try to have as many reallocations as months
-  quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.1, 0.9))#c(1/44, 1-1/44))
+  quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.2, 0.8)) #c(1/44, 1-1/44))
   quantiles
   
   # if only top or bottom 10%
@@ -393,17 +393,66 @@ for (i in intervals)
   quantile(weights_EWMA[,1], probs = c(0.5, 0.75, 0.9, 0.99))
   quantile(weights_GARCH[,1], probs = c(0.5, 0.75, 0.9, 0.99))
   
+  # Calculate volatility managed returns (incl. various transaction costs)
   vars_flexible_v2_Var$VMR <- 0
+  vars_flexible_v2_Var$VMR_1bps <- 0
+  vars_flexible_v2_Var$VMR_10bps <- 0
+  vars_flexible_v2_Var$VMR_14bps <- 0
   vars_flexible_v2_EWMA$VMR <- 0
+  vars_flexible_v2_EWMA$VMR_1bps <- 0
+  vars_flexible_v2_EWMA$VMR_10bps <- 0
+  vars_flexible_v2_EWMA$VMR_14bps <- 0
   vars_flexible_v2_GARCH$VMR <- 0
+  vars_flexible_v2_GARCH$VMR_1bps <- 0
+  vars_flexible_v2_GARCH$VMR_10bps <- 0
+  vars_flexible_v2_GARCH$VMR_14bps <- 0
   for (i in 2:n_Var) {
     vars_flexible_v2_Var$VMR[i] <- weights_Var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i]
+    if (i == 2) {
+      vars_flexible_v2_Var$VMR_1bps[i] <- weights_Var[i-1,1]*(vars_flexible_v2_Var$`Mkt-RF`[i] - 0.01)+vars_flexible_v2_Var$RF[i]
+      vars_flexible_v2_Var$VMR_10bps[i] <- weights_Var[i-1,1]*(vars_flexible_v2_Var$`Mkt-RF`[i] - 0.10)+vars_flexible_v2_Var$RF[i]
+      vars_flexible_v2_Var$VMR_14bps[i] <- weights_Var[i-1,1]*(vars_flexible_v2_Var$`Mkt-RF`[i] - 0.14)+vars_flexible_v2_Var$RF[i]
+    }
+    else {
+      vars_flexible_v2_Var$VMR_1bps[i] <- weights_Var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i] -
+        abs(weights_Var[i-1,1]-weights_Var[i-2,1]) * 0.01
+      vars_flexible_v2_Var$VMR_10bps[i] <- weights_Var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i] -
+        abs(weights_Var[i-1,1]-weights_Var[i-2,1]) * 0.10
+      vars_flexible_v2_Var$VMR_14bps[i] <- weights_Var[i-1,1]*vars_flexible_v2_Var$`Mkt-RF`[i]+vars_flexible_v2_Var$RF[i] -
+        abs(weights_Var[i-1,1]-weights_Var[i-2,1]) * 0.14
+    }
   }
   for (i in 2:n_EWMA) {
     vars_flexible_v2_EWMA$VMR[i] <- weights_EWMA[i-1,1]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i]
+    if (i == 2) {
+      vars_flexible_v2_EWMA$VMR_1bps[i] <- weights_EWMA[i-1,1]*(vars_flexible_v2_EWMA$`Mkt-RF`[i] - 0.01)+vars_flexible_v2_EWMA$RF[i]
+      vars_flexible_v2_EWMA$VMR_10bps[i] <- weights_EWMA[i-1,1]*(vars_flexible_v2_EWMA$`Mkt-RF`[i] - 0.10)+vars_flexible_v2_EWMA$RF[i]
+      vars_flexible_v2_EWMA$VMR_14bps[i] <- weights_EWMA[i-1,1]*(vars_flexible_v2_EWMA$`Mkt-RF`[i] - 0.14)+vars_flexible_v2_EWMA$RF[i]
+    }
+    else {
+      vars_flexible_v2_EWMA$VMR_1bps[i] <- weights_EWMA[i-1,1]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i] -
+        abs(weights_EWMA[i-1,1]-weights_EWMA[i-2,1]) * 0.01
+      vars_flexible_v2_EWMA$VMR_10bps[i] <- weights_EWMA[i-1,1]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i] -
+        abs(weights_EWMA[i-1,1]-weights_EWMA[i-2,1]) * 0.10
+      vars_flexible_v2_EWMA$VMR_14bps[i] <- weights_EWMA[i-1,1]*vars_flexible_v2_EWMA$`Mkt-RF`[i]+vars_flexible_v2_EWMA$RF[i] -
+        abs(weights_EWMA[i-1,1]-weights_EWMA[i-2,1]) * 0.14
+    }
   }
   for (i in 2:n_GARCH) {
     vars_flexible_v2_GARCH$VMR[i] <- weights_GARCH[i-1,1]*vars_flexible_v2_GARCH$`Mkt-RF`[i]+vars_flexible_v2_GARCH$RF[i]
+    if (i == 2) {
+      vars_flexible_v2_GARCH$VMR_1bps[i] <- weights_GARCH[i-1,1]*(vars_flexible_v2_GARCH$`Mkt-RF`[i] - 0.01)+vars_flexible_v2_GARCH$RF[i]
+      vars_flexible_v2_GARCH$VMR_10bps[i] <- weights_GARCH[i-1,1]*(vars_flexible_v2_GARCH$`Mkt-RF`[i] - 0.10)+vars_flexible_v2_GARCH$RF[i]
+      vars_flexible_v2_GARCH$VMR_14bps[i] <- weights_GARCH[i-1,1]*(vars_flexible_v2_GARCH$`Mkt-RF`[i] - 0.14)+vars_flexible_v2_GARCH$RF[i]
+    }
+    else {
+      vars_flexible_v2_GARCH$VMR_1bps[i] <- weights_GARCH[i-1,1]*vars_flexible_v2_GARCH$`Mkt-RF`[i]+vars_flexible_v2_GARCH$RF[i] -
+        abs(weights_GARCH[i-1,1]-weights_GARCH[i-2,1]) * 0.01
+      vars_flexible_v2_GARCH$VMR_10bps[i] <- weights_GARCH[i-1,1]*vars_flexible_v2_GARCH$`Mkt-RF`[i]+vars_flexible_v2_GARCH$RF[i] -
+        abs(weights_GARCH[i-1,1]-weights_GARCH[i-2,1]) * 0.10
+      vars_flexible_v2_GARCH$VMR_14bps[i] <- weights_GARCH[i-1,1]*vars_flexible_v2_GARCH$`Mkt-RF`[i]+vars_flexible_v2_GARCH$RF[i] -
+        abs(weights_GARCH[i-1,1]-weights_GARCH[i-2,1]) * 0.14
+    }
   }
   
   ggplot() + 
@@ -412,30 +461,40 @@ for (i in intervals)
     geom_line(aes(y = weights_GARCH[,1], x = c(1:nrow(weights_GARCH)), colour = "blue")) +
     ggtitle("Weights") + xlab("") + ylab("")
   
-  
   apply(vars_flexible_v2_Var[-1,c(4,7)], 2, var)
   apply(vars_flexible_v2_EWMA[-1,c(4,7)], 2, var)
   apply(vars_flexible_v2_GARCH[-1,c(4,7)], 2, var)
   
-  tot_ret_VM_Var = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_Var$Date), c(1:(n_Var+1)))
-  colnames(tot_ret_VM_Var) <- c("Date", "Performance Var")
-  tot_ret_VM_EWMA = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_EWMA$Date), c(1:(n_EWMA+1)))
-  colnames(tot_ret_VM_EWMA) <- c("Date", "Performance EWMA")
-  tot_ret_VM_GARCH = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_GARCH$Date), c(1:(n_GARCH+1)))
-  colnames(tot_ret_VM_GARCH) <- c("Date", "Performance GARCH")
+  
+  # Calculate total returns (incl. various transaction costs)
+  tot_ret_VM_Var = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_Var$Date), 
+                              c(1:(n_Var+1)), c(1:(n_Var+1)), c(1:(n_Var+1)), c(1:(n_Var+1)))
+  colnames(tot_ret_VM_Var) <- c("Date", "Performance Var", "Performance Var 1bps", "Performance Var 10bps", "Performance Var 14bps")
+  tot_ret_VM_EWMA = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_EWMA$Date), 
+                               c(1:(n_EWMA+1)), c(1:(n_EWMA+1)), c(1:(n_EWMA+1)), c(1:(n_EWMA+1)))
+  colnames(tot_ret_VM_EWMA) <- c("Date", "Performance EWMA", "Performance EWMA 1bps", "Performance EWMA 10bps", "Performance EWMA 14bps")
+  tot_ret_VM_GARCH = data.frame(c(as.Date("1926/07/01"),vars_flexible_v2_GARCH$Date), 
+                                c(1:(n_GARCH+1)), c(1:(n_GARCH+1)), c(1:(n_GARCH+1)), c(1:(n_GARCH+1)))
+  colnames(tot_ret_VM_GARCH) <- c("Date", "Performance GARCH", "Performance GARCH 1bps", "Performance GARCH 10bps", "Performance GARCH 14bps")
   
   for (period in 2:(n_Var+1)) {
     tot_ret_VM_Var[period, 2] = tot_ret_VM_Var[period - 1, 2]*(1 + vars_flexible_v2_Var$VMR[period - 1]/100)
+    tot_ret_VM_Var[period, 3] = tot_ret_VM_Var[period - 1, 3]*(1 + vars_flexible_v2_Var$VMR_1bps[period - 1]/100)
+    tot_ret_VM_Var[period, 4] = tot_ret_VM_Var[period - 1, 4]*(1 + vars_flexible_v2_Var$VMR_10bps[period - 1]/100)
+    tot_ret_VM_Var[period, 5] = tot_ret_VM_Var[period - 1, 5]*(1 + vars_flexible_v2_Var$VMR_14bps[period - 1]/100)
   }
   for (period in 2:(n_EWMA+1)) {
     tot_ret_VM_EWMA[period, 2] = tot_ret_VM_EWMA[period - 1, 2]*(1 + vars_flexible_v2_EWMA$VMR[period - 1]/100)
+    tot_ret_VM_EWMA[period, 3] = tot_ret_VM_EWMA[period - 1, 3]*(1 + vars_flexible_v2_EWMA$VMR_1bps[period - 1]/100)
+    tot_ret_VM_EWMA[period, 4] = tot_ret_VM_EWMA[period - 1, 4]*(1 + vars_flexible_v2_EWMA$VMR_10bps[period - 1]/100)
+    tot_ret_VM_EWMA[period, 5] = tot_ret_VM_EWMA[period - 1, 5]*(1 + vars_flexible_v2_EWMA$VMR_14bps[period - 1]/100)
   }
   for (period in 2:(n_GARCH+1)) {
     tot_ret_VM_GARCH[period, 2] = tot_ret_VM_GARCH[period - 1, 2]*(1 + vars_flexible_v2_GARCH$VMR[period - 1]/100)
+    tot_ret_VM_GARCH[period, 3] = tot_ret_VM_GARCH[period - 1, 3]*(1 + vars_flexible_v2_GARCH$VMR_1bps[period - 1]/100)
+    tot_ret_VM_GARCH[period, 4] = tot_ret_VM_GARCH[period - 1, 4]*(1 + vars_flexible_v2_GARCH$VMR_10bps[period - 1]/100)
+    tot_ret_VM_GARCH[period, 5] = tot_ret_VM_GARCH[period - 1, 5]*(1 + vars_flexible_v2_GARCH$VMR_14bps[period - 1]/100)
   }
-  summary(vars_flexible_v2_Var$VMR)
-  summary(vars_flexible_v2_EWMA$VMR)
-  summary(vars_flexible_v2_GARCH$VMR)
   
   # Market return
   market_returns <- data.frame(FF_monthly$Date, c(1:nrow(FF_monthly)))
@@ -472,47 +531,76 @@ for (i in intervals)
                                                        "EWMA" = "green", "GARCH" = "blue"))
   
   reg_flex_Var <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
+  reg_flex_Var_1bps <- lm(VMR_1bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
+  reg_flex_Var_10bps <- lm(VMR_10bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
+  reg_flex_Var_14bps <- lm(VMR_14bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
   reg_flex_EWMA <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_EWMA)
+  reg_flex_EWMA_1bps <- lm(VMR_1bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_EWMA)
+  reg_flex_EWMA_10bps <- lm(VMR_10bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_EWMA)
+  reg_flex_EWMA_14bps <- lm(VMR_14bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_EWMA)
   reg_flex_GARCH <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_GARCH)
+  reg_flex_GARCH_1bps <- lm(VMR_1bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_GARCH)
+  reg_flex_GARCH_10bps <- lm(VMR_10bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_GARCH)
+  reg_flex_GARCH_14bps <- lm(VMR_14bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_GARCH)
   
-  reg_output_flex <- data.frame(matrix(ncol = length(names_flex), nrow = length(output_names)))
-  colnames(reg_output_flex) <- names_flex
+  names_flex_cost <- c("Var", "Var_1bps", "Var_10bps", "Var_14bps", "EWMA", "EWMA_1bps", "EWMA_10bps", "EWMA_14bps",
+                       "GARCH", "GARCH_1bps", "GARCH_10bps", "GARCH_14bps")
+  reg_output_flex <- data.frame(matrix(ncol = length(names_flex_cost), nrow = length(output_names)))
+  colnames(reg_output_flex) <- names_flex_cost
   rownames(reg_output_flex) <- output_names
   
   trading_days <- 252
-  factors <- c(1:3)
-  factors[1] <- nrow(vars_flexible_v2_Var) / (nrow(FF_daily)-interval) * trading_days
-  factors[2] <- nrow(vars_flexible_v2_EWMA) / (nrow(FF_daily)-interval) * trading_days
-  factors[3] <- nrow(vars_flexible_v2_GARCH) / (nrow(FF_daily)-interval) * trading_days
+  factors <- c(1:12)
+  factors[1:4] <- nrow(vars_flexible_v2_Var) / (nrow(FF_daily)-interval) * trading_days
+  factors[5:8] <- nrow(vars_flexible_v2_EWMA) / (nrow(FF_daily)-interval) * trading_days
+  factors[9:12] <- nrow(vars_flexible_v2_GARCH) / (nrow(FF_daily)-interval) * trading_days
   
-  
-  for (i in 1:length(names_flex)) {
-    reg_output_flex["alpha_mkt", i] <- get(paste("reg_flex_", names_flex[i], sep = ""))$coefficients[1] * factors[i]
-    reg_output_flex["beta_mkt", i] <- get(paste("reg_flex_", names_flex[i], sep = ""))$coefficients[2]
-    reg_output_flex["R^2_mkt", i] <- summary(get(paste("reg_flex_", names_flex[i], sep = "")))$r.squared
-    reg_output_flex["RMSE", i] <- sigma(get(paste("reg_flex_", names_flex[i], sep = ""))) * factors[i]
-    reg_output_flex["SR", i] <- factors[i] * 
-      mean(get(paste("vars_flexible_v2_", names_flex[i], sep = ""))$VMR - 
-              get(paste("vars_flexible_v2_", names_flex[i], sep = ""))$RF) / 
-      (sqrt(factors[i]) * sd(get(paste("vars_flexible_v2_", names_flex[i], sep = ""))$VMR))
+  for (i in 1:length(names_flex_cost)) {
+    reg_output_flex["alpha_mkt", i] <- get(paste("reg_flex_", names_flex_cost[i], sep = ""))$coefficients[1] * factors[i]
+    reg_output_flex["beta_mkt", i] <- get(paste("reg_flex_", names_flex_cost[i], sep = ""))$coefficients[2]
+    reg_output_flex["R^2_mkt", i] <- summary(get(paste("reg_flex_", names_flex_cost[i], sep = "")))$r.squared
+    reg_output_flex["RMSE", i] <- sigma(get(paste("reg_flex_", names_flex_cost[i], sep = ""))) * factors[i]
+    reg_output_flex["SR", i] <- 1 #factors[i] * 
+      #mean(get(paste("vars_flexible_v2_", names_flex_cost[i], sep = ""))$VMR - 
+      #        get(paste("vars_flexible_v2_", names_flex_cost[i], sep = ""))$RF) / 
+      #(sqrt(factors[i]) * sd(get(paste("vars_flexible_v2_", names_flex_cost[i], sep = ""))$VMR))
     reg_output_flex["Appr_Ratio", i] <- sqrt(factors[i]) * reg_output_flex["alpha_mkt", i] / reg_output_flex["RMSE", i]
-    reg_output_flex["Performance", i] <- get(paste("tot_ret_VM_", names_flex[i], sep = ""))[get(paste("n_", names_flex[i], sep = ""))+1,2]
+    reg_output_flex["Performance", i] <- tail(get(paste("tot_ret_VM_", names_flex[ceiling(i/4)], sep = ""))[,c(5,2,3,4)[i%%4+1]], n = 1)
   }
-  
+
   # round(reg_output_flex, 2)
   
   for (i in 1:ncol(reg_output_flex)) {
     combined_output_flex[,ncol(combined_output_flex)+1] <- round(reg_output_flex[,i],2)
     col = ncol(combined_output_flex)
-    colnames(combined_output_flex)[col] <- colnames(reg_output_flex)[i]
+    colnames(combined_output_flex)[col] <- paste(colnames(reg_output_flex)[i], interval, sep = "_")
   }
 }
 combined_output_flex
 
-# improve table
+# alpha and apprasial ratio table (costs <-> interval)
+output_flex_alpha <- data.frame(matrix(ncol = length(intervals), nrow = length(names_flex_cost)))
+rownames(output_flex_alpha) <- names_flex_cost
+colnames(output_flex_alpha) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
+output_flex_appr_ratio <- data.frame(matrix(ncol = length(intervals), nrow = length(names_flex_cost)))
+rownames(output_flex_appr_ratio) <- names_flex_cost
+colnames(output_flex_appr_ratio) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
+for (i in 1:length(intervals)) {
+  for (j in 1:length(names_flex_cost)) {
+    output_flex_alpha[j,i] <- combined_output_flex[1,j+(i-1)*12]
+    output_flex_appr_ratio[j,i] <- combined_output_flex[6,j+(i-1)*12]
+  }
+}
+# Alphas
+output_flex_alpha
+# Apprasial Ratios
+output_flex_appr_ratio
+
+
+# improve table (without costs)
 output_flex_var <- data.frame(matrix(ncol = length(intervals), nrow = length(output_names)))
 rownames(output_flex_var) <- output_names
-colnames(output_flex_var) <- intervals
+colnames(output_flex_var) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
 for (i in 1:length(intervals)) {
   output_flex_var[,i] <- combined_output_flex[,i*3-2]
 }
