@@ -18,6 +18,7 @@ library(ggthemes)
 library(moments)
 library(optimx)
 library(stargazer)
+library(rugarch)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -62,20 +63,26 @@ var_m <- FF_daily %>%
   group_by(year, month) %>%
   summarise(variance = var(`Mkt-RF`) * trading_days)
 
+var_m$Date <- FF_monthly$Date
 var_m <- var_m %>% mutate(volatility = sqrt(variance))
 plot(var_m$volatility * sqrt(trading_months), type = "l")
 
 # Scenario 2: ARIMA Model
 variance_ts_m <- xts(var_m$variance, order.by = FF_monthly$Date)
 
-Acf(variance_ts_m, lag = 24)
-Pacf(variance_ts_m, lag = 24)
+kpss.test(var_m$variance)
+kpss.test(diff(var_m$variance))
+adf.test(diff(var_m$variance))
+pp.test(diff(var_m$variance))
 
-# DISCUSS: aic and bic yield different optimal models --> should we mention?
-ARMA_model_m <- auto.arima(variance_ts_m, stepwise = FALSE)
+Acf(diff(variance_ts_m), lag = 24, main = "ACF Differenced Monthly Variance")
+Pacf(diff(variance_ts_m), lag = 24, main = "PACF Differenced Monthly Variance")
+
+ARMA_model_m <- auto.arima(variance_ts_m,stepwise = FALSE, approximation = FALSE)
 jarque.test(as.vector(ARMA_model_m$residuals))
 
 var_m$ARMA_var <- c(fitted(ARMA_model_m)[-1], forecast(ARMA_model_m, h = 1)$mean)
+var_m$ARMA_vol <- sqrt(var_m$ARMA_var)
 
 # Scenario 3: EWMA Model
 # Optimize Lambda
@@ -103,9 +110,13 @@ for (i in 2:n_months) {
   var_m$EWMA_var[i] <- lambda_m * var_m$EWMA_var[i - 1] + (1 - lambda_m) * 
     var_m$variance[i]
   }
+var_m$EWMA_vol <- sqrt(var_m$EWMA_var)
 
 # Scenario 4: GARCH
 # Optimize Parameter
+GARCH_model <- ugarchfit(ugarchspec(
+  mean.model = list(armaOrder = c(0, 0), include.mean = FALSE)), data = sqrt(FF_monthly$u_sq))
+
 GARCH_function_m <- function(alpha, beta)
 {
   omega <- max(0,mean(FF_monthly$u_sq)*(1-alpha-beta))
@@ -129,11 +140,40 @@ omega_m <- max(0,mean(FF_monthly$u_sq)*(1-alpha_m-beta_m))
 
 # Calculate GARCH Variance
 var_m$GARCH_var <- c(1:n_months)
-var_m$GARCH_var[1] <- FF_monthly$u_sq[1]
+var_m$GARCH_var[1] <- FF_monthly$u_sq[1] * 10000
 for (i in 2:n_months) {
-  var_m$GARCH_var[i] <- omega_m +
-    alpha_m*FF_monthly$u_sq[i] + beta_m * var_m$GARCH_var[i-1]
+  var_m$GARCH_var[i] <- (omega_m +
+    alpha_m*FF_monthly$u_sq[i] + beta_m * var_m$GARCH_var[i-1] / 10000) * 10000
 }
+var_m$GARCH_vol <- sqrt(var_m$GARCH_var)
+
+# Analyze Variance Estimates
+ggplot(var_m, aes(x = Date)) +
+  geom_line(aes(y = volatility * sqrt(252), color = "Realized Variance")) +
+  geom_line(aes(y = ARMA_vol * sqrt(252), color = "ARMA")) +
+  geom_line(aes(y = EWMA_vol * sqrt(252), color = "EWMA")) +
+  geom_line(aes(y = GARCH_vol * sqrt(252), color = "GARCH")) +
+  theme_stata() +
+  scale_color_manual(name = "Strategies", 
+                     values = c("Buy and Hold" = "black", 
+                                "Realized Variance" = "red", "ARMA" = "blue", 
+                                "EWMA" = "green", "GARCH" = "yellow"))
+
+summary(lm(var_m$variance[-1] ~ var_m$variance[-n_months]))
+summary(lm(var_m$variance[-1] ~ var_m$ARMA_var[-n_months]))
+summary(lm(var_m$variance[-1] ~ var_m$EWMA_var[-n_months]))
+summary(lm(var_m$variance[-1] ~ var_m$GARCH_var[-n_months]))
+
+summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$variance[-n_months]))
+summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$ARMA_var[-n_months]))
+summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$EWMA_var[-n_months]))
+summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$GARCH_var[-n_months]))
+
+summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$variance[-n_months]))
+summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$ARMA_var[-n_months]))
+summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$EWMA_var[-n_months]))
+summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$GARCH_var[-n_months]))
+
 
 # Strategy Names
 names <- c("var_managed","ARMA_var_managed", "EWMA_var_managed",
@@ -356,7 +396,6 @@ stat_ret_cost_m[4,] <- apply(returns_cost_m[,names], 2, kurtosis)
 stat_ret_cost_m[5:9,] <- as.data.frame(apply(returns_cost_m[,names], 2, quantile))
 
 round(stat_ret_m, 4)
-<<<<<<< HEAD
 round(stat_ret_cost_m, 4)
 
 stat_weight_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
@@ -375,6 +414,7 @@ ggplot(returns_m) +
   geom_histogram(aes(x=EWMA_var_managed, color = "EWMA"), bins = 100) +
   geom_histogram(aes(x=GARCH_var_managed, color = "GARCH"), bins = 100) +
   xlim(-40,40) +
+  theme_stata() +
   scale_color_manual(name = "Strategies", 
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
@@ -425,8 +465,6 @@ ggplot(tot_ret_m, aes(x = Date)) +
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
-=======
->>>>>>> f6cffdb58994f5914e433c32ba4b2efb4ab17098
 
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
@@ -674,13 +712,6 @@ for (frequ in min_frequ:max_frequ) {
   }
   u_sq_c[1] <- log(1 + (ret_temp - rf_temp) / 100)^2
   u_sq_c[2:n_custom] <- log( 1 + returns_c$`Mkt-RF` / 100)^2
-
-  # Calculate Simple Variance
-  var_c$simple_6 <- c(1:n_custom)
-  var_c$simple_6[1] <- var_c$variance[1]
-  for (i in 2:n_custom) {
-    var_c$simple_6[i] <- mean(var_c$variance[(i-min(6,i)+1):i])
-  }
   
   # Scenario 2: ARIMA Model
   variance_ts_c <- xts(var_c$variance, order.by = var_c$Date)
@@ -689,8 +720,9 @@ for (frequ in min_frequ:max_frequ) {
   Pacf(variance_ts_c, lag = 22)
   
   # DISCUSS: aic and bic yield different optimal models --> should we mention?
-  ARMA_model_c <- auto.arima(variance_ts_c, d = 0, stepwise = FALSE)
+  ARMA_model_c <- auto.arima(variance_ts_c, stepwise = FALSE)
   jarque.test(as.vector(ARMA_model_c$residuals))
+  print(ARMA_model_c)
   
   var_c$ARMA_var <- c(fitted(ARMA_model_c)[-1], forecast(ARMA_model_c, h = 1)$mean)
   
@@ -741,7 +773,6 @@ for (frequ in min_frequ:max_frequ) {
   alpha_c <- GARCH_max_c$p1
   beta_c <- GARCH_max_c$p2
   omega_c <- max(0,mean(u_sq_c)*(1-alpha_c-beta_c))
-  print(omega_c)
   
   # Calculate GARCH Variance
   var_c$GARCH_var <- c(1:n_custom)
@@ -920,7 +951,7 @@ Acf(variance_ts_d, lag = 22)
 Pacf(variance_ts_d, lag = 22)
 
 # DISCUSS: aic and bic yield different optimal models --> should we mention?
-ARMA_model_d <- auto.arima(variance_ts_d, d = 0, stepwise = FALSE)
+ARMA_model_d <- auto.arima(variance_ts_d, stepwise = FALSE)
 jarque.test(as.vector(ARMA_model_d$residuals))
 
 var_d$ARMA_var <- c(fitted(ARMA_model_d)[-1], forecast(ARMA_model_d, h = 1)$mean)
@@ -943,7 +974,6 @@ ewma_max_d <- optimize(EWMA_function_d, interval = c(0, 1), maximum = TRUE,
                        tol = 0.000000000000001)
 lambda_d <- ewma_max_d$maximum
 
-# Use realized variance instead --> does that make sense????
 # Calculate EWMA Variance
 var_d$EWMA_var <- c(1:n_days)
 var_d$EWMA_var[1] <- var_d$variance[1]
