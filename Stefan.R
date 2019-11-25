@@ -192,8 +192,9 @@ beta = 0.890202868683846
 output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "Performance")
 combined_output_flex <- data.frame(row.names = output_names)
 
+intervals <- c(5, 11, 22, 44, 66, 126, 252, 504)
 
-for (i in c(22, 44, 126, 252, 504))
+for (i in intervals)
 {
   interval = i
 
@@ -247,9 +248,9 @@ for (i in c(22, 44, 126, 252, 504))
   quantiles
   
   # if only top or bottom 10%
-  quantiles[1,] <- c(1000, 1000, 1000) # sufficiently large number as max
-  quantiles[2,] <- apply(daily_vars[,7:9], 2, quantile, probs = 0.9)
-  quantiles
+  # quantiles[1,] <- c(1000, 1000, 1000) # sufficiently large number as max
+  # quantiles[2,] <- apply(daily_vars[,7:9], 2, quantile, probs = 0.95)
+  # quantiles
   
   # use the new boundaries
   vars_flexible_v2_Var <- data.frame(ymd("1900/01/01"), 0, 0, 0, 0)
@@ -266,7 +267,7 @@ for (i in c(22, 44, 126, 252, 504))
   last_i_GARCH = 0
   while (i_Var < nrow(daily_vars)) {
     # Var
-    if (daily_vars$Var_perc_dev[i_Var] > quantiles[2,1] || daily_vars$Var_perc_dev[i_Var] < quantiles[1,1]) {
+    if (daily_vars$Var_perc_dev[i_Var] > quantiles[2,1] || daily_vars$Var_perc_dev[i_Var] < quantiles[1,1]) { # ggf || and & austauschen
       ret_temp = 0
       rf_temp = 0
       for (j in c((last_i_Var+1):i_Var)) {
@@ -507,6 +508,33 @@ for (i in c(22, 44, 126, 252, 504))
   }
 }
 combined_output_flex
+
+# improve table
+output_flex_var <- data.frame(matrix(ncol = length(intervals), nrow = length(output_names)))
+rownames(output_flex_var) <- output_names
+colnames(output_flex_var) <- intervals
+for (i in 1:length(intervals)) {
+  output_flex_var[,i] <- combined_output_flex[,i*3-2]
+}
+
+output_flex_ewma <- data.frame(matrix(ncol = 3, nrow = length(output_names)))
+rownames(output_flex_ewma) <- output_names
+colnames(output_flex_ewma) <- c("From start", "1 year", "2 years")
+output_flex_ewma[,1] <- combined_output_flex[,8]
+output_flex_ewma[,2] <- combined_output_flex[,20]
+output_flex_ewma[,3] <- combined_output_flex[,23]
+
+output_flex_garch <- data.frame(matrix(ncol = 3, nrow = length(output_names)))
+rownames(output_flex_garch) <- output_names
+colnames(output_flex_garch) <- c("From start", "1 year", "2 years")
+output_flex_garch[,1] <- combined_output_flex[,9]
+output_flex_garch[,2] <- combined_output_flex[,21]
+output_flex_garch[,3] <- combined_output_flex[,24]
+
+output_flex_var
+output_flex_ewma
+output_flex_garch
+
 
 filter(FF_monthly, Mkt < -10)
 filter(vars_flexible_v2_Var, VMR < -10)
