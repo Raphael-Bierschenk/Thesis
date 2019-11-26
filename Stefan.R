@@ -192,7 +192,7 @@ beta = 0.890202868683846
 output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "Performance")
 combined_output_flex <- data.frame(row.names = output_names)
 
-intervals <- c(5, 11, 22, 44, 66, 126, 252, 504)
+intervals <- c(252) #c(5, 11, 22, 44, 66, 126, 252, 504)
 
 for (i in intervals)
 {
@@ -244,7 +244,7 @@ for (i in intervals)
   summary(daily_vars$GARCH_perc_dev)
   
   # try to have as many reallocations as months
-  quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.2, 0.8)) #c(1/44, 1-1/44))
+  quantiles <- apply(daily_vars[,7:9], 2, quantile, probs = c(0.15, 0.75)) # c(1/44, 1-1/44)) # 
   quantiles
   
   # if only top or bottom 10%
@@ -514,6 +514,7 @@ for (i in intervals)
     geom_line(aes(y=tot_ret_VM_Var$`Performance Var`, x=tot_ret_VM_Var$Date, colour="Realized Variance")) +
     geom_line(aes(y=tot_ret_VM_EWMA$`Performance EWMA`, x=tot_ret_VM_EWMA$Date, colour="EWMA")) +
     geom_line(aes(y=tot_ret_VM_GARCH$`Performance GARCH`, x=tot_ret_VM_GARCH$Date, colour="GARCH")) +
+    #geom_line(aes(y=tot_ret$var_managed, x=tot_ret$Date, colour="Base Strategy")) +
     scale_x_date(limits = as.Date(c("1926-7-1", "2019-8-1")),
                  expand = c(0,0),
                  breaks = dates,
@@ -528,7 +529,7 @@ for (i in intervals)
     theme(legend.position="bottom") +
     ggtitle(paste("Cumulative Performance",interval)) + xlab("") + ylab("") +
     scale_color_manual(name = "Strategies", values = c("Buy and Hold" = "black", "Realized Variance" = "red",
-                                                       "EWMA" = "green", "GARCH" = "blue"))
+                                                       "EWMA" = "green", "GARCH" = "blue", "Base Strategy" = "orange"))
   
   reg_flex_Var <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
   reg_flex_Var_1bps <- lm(VMR_1bps[-1] - RF[-1] ~ `Mkt-RF`[-1], vars_flexible_v2_Var)
@@ -602,26 +603,38 @@ output_flex_var <- data.frame(matrix(ncol = length(intervals), nrow = length(out
 rownames(output_flex_var) <- output_names
 colnames(output_flex_var) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
 for (i in 1:length(intervals)) {
-  output_flex_var[,i] <- combined_output_flex[,i*3-2]
+  output_flex_var[,i] <- combined_output_flex[,i*12-11]
 }
 
 output_flex_ewma <- data.frame(matrix(ncol = 3, nrow = length(output_names)))
 rownames(output_flex_ewma) <- output_names
 colnames(output_flex_ewma) <- c("From start", "1 year", "2 years")
-output_flex_ewma[,1] <- combined_output_flex[,8]
-output_flex_ewma[,2] <- combined_output_flex[,20]
-output_flex_ewma[,3] <- combined_output_flex[,23]
+output_flex_ewma[,1] <- combined_output_flex[,29]
+output_flex_ewma[,2] <- combined_output_flex[,77]
+output_flex_ewma[,3] <- combined_output_flex[,89]
 
 output_flex_garch <- data.frame(matrix(ncol = 3, nrow = length(output_names)))
 rownames(output_flex_garch) <- output_names
 colnames(output_flex_garch) <- c("From start", "1 year", "2 years")
-output_flex_garch[,1] <- combined_output_flex[,9]
-output_flex_garch[,2] <- combined_output_flex[,21]
-output_flex_garch[,3] <- combined_output_flex[,24]
+output_flex_garch[,1] <- combined_output_flex[,33]
+output_flex_garch[,2] <- combined_output_flex[,81]
+output_flex_garch[,3] <- combined_output_flex[,93]
 
 output_flex_var
 output_flex_ewma
 output_flex_garch
+
+
+# Graphs
+
+# Distribution of GARCH percentage deviations
+daily_vars %>%
+  mutate(GARCH_perc_dev_temp = ifelse(GARCH_perc_dev > 1, 1, GARCH_perc_dev)) %>%
+  ggplot(aes(GARCH_perc_dev_temp)) +
+  geom_histogram(aes(log(1+GARCH_perc_dev_temp)), binwidth = 0.005) +
+  geom_vline(xintercept = quantiles[1,3], color = "red", linetype = "dashed") +
+  geom_vline(xintercept = quantiles[2,3], color = "red", linetype = "dashed") +
+  ggtitle("Distribution of percentage deviation of variances for GARCH, 2 years") + xlab("") + ylab("")
 
 
 filter(FF_monthly, Mkt < -10)
@@ -658,8 +671,8 @@ monthly_vars$ARMA_var <- c(1:n_months)
 for (i in 1:n_months) {
   if (i <= min_obs) monthly_vars$ARMA_var[i] <- variance_ts[i]
   else {
-    model[[i-min_obs]] <- auto.arima(variance_ts[max(1,(i-max_obs)):i], d = 0)
-    monthly_vars$ARMA_var[i] <- as.numeric(forecast(model[[i-min_obs]], h = 1)$mean)
+    model[[i-min_obs]] <- 1 # auto.arima(variance_ts[max(1,(i-max_obs)):i], d = 0)
+    monthly_vars$ARMA_var[i] <- 1 # as.numeric(forecast(model[[i-min_obs]], h = 1)$mean)
   }
 }
 
@@ -919,7 +932,7 @@ for (month in 2:n_months) {
 tot_ret[n_months,]
 
 # ***** Plot market and VM returns on log scale *****
-months <- seq(as.Date("1926/7/1"), as.Date("2015/4/1"), by = "month")
+months <- seq(as.Date("1926/7/1"), as.Date("2019/8/1"), by = "month")
 scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
            200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
            20000,30000,40000,50000,60000,70000,80000,90000,100000)
@@ -928,7 +941,7 @@ ggplot(tot_ret, aes(months)) +
   geom_line(aes(y=Mkt)) +
   geom_line(aes(y=var_managed)) +
   geom_line(aes(y=var_factor)) +
-  scale_x_date(limits = as.Date(c("1926-7-1", "2015-4-1")),
+  scale_x_date(limits = as.Date(c("1926-7-1", "2019-8-1")),
                expand = c(0,0),
                breaks = dates,
                labels = format(dates, "%Y"),
