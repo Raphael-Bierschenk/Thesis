@@ -23,10 +23,12 @@ library(rugarch)
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
 FF_monthly <- read_csv("F-F_Research_Data_Factors.CSV", col_names = TRUE, skip = 3)
+recession <- read_csv("USREC.csv", col_names = TRUE)
 
 # Rename and Crop Data
 FF_daily <- FF_daily %>% rename(Date = X1)
 FF_monthly <- FF_monthly %>% rename(Date = X1)
+recession <- recession %>% rename(Date = DATE, indicator = USREC)
 
 first_day <- 19260701
 first_month <- 192607
@@ -35,6 +37,7 @@ last_month <- 201908
 
 FF_daily <- FF_daily %>% subset(subset = Date <= last_day & Date >= first_day)
 FF_monthly <- FF_monthly %>% subset(subset = Date <= last_month & Date >= first_month)
+recession <- recession %>% subset(subset = Date <= ymd(last_day) & Date >= ymd(first_day))
 
 # Mutate Data
 n_days <- as.integer(count(FF_daily))
@@ -63,6 +66,7 @@ var_m <- FF_daily %>%
   group_by(year, month) %>%
   summarise(variance = var(`Mkt-RF`) * trading_days)
 
+var_m <- as.data.frame(var_m)
 var_m$Date <- FF_monthly$Date
 var_m <- var_m %>% mutate(volatility = sqrt(variance))
 plot(var_m$volatility * sqrt(trading_months), type = "l")
@@ -115,10 +119,10 @@ var_m$EWMA_vol <- sqrt(var_m$EWMA_var)
 # Scenario 4: GARCH
 # Optimize Parameter
 GARCH_model <- ugarchfit(ugarchspec(
-  mean.model = list(armaOrder = c(0, 0), include.mean = FALSE)), data = sqrt(FF_monthly$u_sq))
+  mean.model = list(armaOrder = c(0, 0), include.mean = FALSE)), data = sqrt(FF_monthly$u_sq),
+  solver = "nloptr", solver.control = list(solver = 4))
 
-GARCH_function_m <- function(alpha, beta)
-{
+GARCH_function_m <- function(alpha, beta) {
   omega <- max(0,mean(FF_monthly$u_sq)*(1-alpha-beta))
   GARCH_var <- c(1:n_months)
   GARCH_var[1] <- FF_monthly$u_sq[1]
@@ -149,31 +153,44 @@ var_m$GARCH_vol <- sqrt(var_m$GARCH_var)
 
 # Analyze Variance Estimates
 ggplot(var_m, aes(x = Date)) +
-  geom_line(aes(y = volatility * sqrt(252), color = "Realized Variance")) +
-  geom_line(aes(y = ARMA_vol * sqrt(252), color = "ARMA")) +
-  geom_line(aes(y = EWMA_vol * sqrt(252), color = "EWMA")) +
-  geom_line(aes(y = GARCH_vol * sqrt(252), color = "GARCH")) +
-  theme_stata() +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
+  geom_line(aes(y = volatility * sqrt(12), color = "Realized Variance")) +
+  geom_line(aes(y = ARMA_vol * sqrt(12), color = "ARMA")) +
+  geom_line(aes(y = EWMA_vol * sqrt(12), color = "EWMA")) +
+  geom_line(aes(y = GARCH_vol * sqrt(12), color = "GARCH")) +
+  theme_minimal() +
+  ggtitle("Annualized Volatility") +
+  ylab("") +
+  scale_color_manual(name = "", values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
 
-summary(lm(var_m$variance[-1] ~ var_m$variance[-n_months]))
-summary(lm(var_m$variance[-1] ~ var_m$ARMA_var[-n_months]))
-summary(lm(var_m$variance[-1] ~ var_m$EWMA_var[-n_months]))
-summary(lm(var_m$variance[-1] ~ var_m$GARCH_var[-n_months]))
+var_names <- c("variance", "ARMA_var", "EWMA_var", "GARCH_var")
+var_var_reg_m <- vector(mode = "list", length = length(names))
+ret_var_reg_m <- vector(mode = "list", length = length(names))
+retvar_var_reg_m <- vector(mode = "list", length = length(names))
 
-summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$variance[-n_months]))
-summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$ARMA_var[-n_months]))
-summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$EWMA_var[-n_months]))
-summary(lm((returns_m$Mkt - returns_m$rf) ~ var_m$GARCH_var[-n_months]))
+for (i in 1:length(var_names)) {
+  var_var_reg_m[[i]] <- lm(var_m$variance[-1] ~ var_m[-n_months, var_names[i]])
+  ret_var_reg_m[[i]] <- lm(FF_monthly$`Mkt-RF`[-1] ~ var_m[-n_months, var_names[i]])
+  retvar_var_reg_m[[i]] <- lm((FF_monthly$`Mkt-RF`[-1] / var_m$variance[-1]) ~
+                                var_m[-n_months, var_names[i]])
+  names(var_var_reg_m[[i]]$coefficients) <- 
+    c(names(var_var_reg_m[[i]]$coefficients[1]), var_names[i])
+  names(ret_var_reg_m[[i]]$coefficients) <- 
+    c(names(var_var_reg_m[[i]]$coefficients[1]), var_names[i])
+  names(retvar_var_reg_m[[i]]$coefficients) <- 
+    c(names(var_var_reg_m[[i]]$coefficients[1]), var_names[i])
+}
 
-summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$variance[-n_months]))
-summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$ARMA_var[-n_months]))
-summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$EWMA_var[-n_months]))
-summary(lm((returns_m$Mkt - returns_m$rf)/var_m$variance[-1] ~ var_m$GARCH_var[-n_months]))
-
+stargazer(var_var_reg_m[[1]], var_var_reg_m[[2]], var_var_reg_m[[3]], var_var_reg_m[[4]],
+          ret_var_reg_m[[1]], ret_var_reg_m[[2]], ret_var_reg_m[[3]], ret_var_reg_m[[4]],
+          retvar_var_reg_m[[1]], retvar_var_reg_m[[2]], retvar_var_reg_m[[3]], retvar_var_reg_m[[4]],
+          type = "text", dep.var.labels = c("Variance Next Month","Return Next Month",
+                                            "Return per Unit of Variance"), 
+          covariate.labels = c("Realized Variance", "ARMA", "EWMA", "GARCH"),
+          out = "table.htm")
+stargazer(ret_var_reg_m[[1]], ret_var_reg_m[[2]], ret_var_reg_m[[3]], ret_var_reg_m[[4]])
+stargazer(retvar_var_reg_m[[1]], retvar_var_reg_m[[2]], retvar_var_reg_m[[3]], retvar_var_reg_m[[4]])
 
 # Strategy Names
 names <- c("var_managed","ARMA_var_managed", "EWMA_var_managed",
@@ -210,8 +227,9 @@ w_abs_m <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
 colnames(w_abs_m) <- names
 w_abs_m[1,] <- 1
 
-weights_m <- data.frame(matrix(ncol = length(names), nrow = n_months - 1))
-colnames(weights_m) <- names
+weights_m <- data.frame(matrix(ncol = length(names) + 1, nrow = n_months - 1))
+colnames(weights_m) <- c("Date", names)
+weights_m <- weights_m %>% mutate(Date = FF_monthly$Date[-1])
 
 returns_m <- data.frame(matrix(ncol = length(names) + 3, nrow = n_months - 1))
 colnames(returns_m) <- c("Date", "Mkt", "rf", names)
@@ -224,11 +242,11 @@ returns_cost_m <- returns_cost_m %>% mutate(Date = FF_monthly$Date[-1])
 
 for (i in 1:(n_months-1)) {
   for (j in 1:length(names)) {
-    weights_m[i,j] <- c_m[j] / denom_m[i,j]
+    weights_m[i,names[j]] <- c_m[j] / denom_m[i,j]
     if (i != 1) {
-      w_abs_m[i,names[j]] <- abs(weights_m[i,j] - weights_m[i-1,j])
+      w_abs_m[i,names[j]] <- abs(weights_m[i,names[j]] - weights_m[i-1,names[j]])
     }
-    returns_m[i,names[j]] <- weights_m[i, j] *
+    returns_m[i,names[j]] <- weights_m[i, names[j]] *
       (returns_m$Mkt[i] - returns_m$rf[i]) + returns_m$rf[i]
     returns_cost_m[i,names[j]] <- returns_m[i,names[j]] - 
       w_abs_m[i,names[j]] * trading_cost
@@ -294,7 +312,8 @@ ggplot(tot_ret_m, aes(x = Date)) +
   ggtitle("Cumulative Performance") + 
   xlab("Date") +
   ylab("Performance") +
-  scale_color_manual(name = "Strategies", 
+  theme_stata() + 
+  scale_color_manual(name = "", 
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
@@ -305,6 +324,8 @@ reg_FF3_m <- vector(mode = "list", length = length(names))
 reg_mkt_cost_m <- vector(mode = "list", length = length(names))
 reg_FF3_cost_m <- vector(mode = "list", length = length(names))
 b <- trading_months * (returns_m$Mkt - returns_m$rf)
+b_rec <- trading_months * (returns_m$Mkt - returns_m$rf) * recession$indicator[-1]
+rec <- recession$indicator[-1]
 b1 <- trading_months * (FF_monthly$SMB[-1])
 b2 <- trading_months * (FF_monthly$HML[-1])
 
@@ -335,10 +356,10 @@ for (i in 1:length(names)) {
   reg_output_m["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
   reg_output_m["beta_mkt", i] <- reg_mkt_m[[i]]$coefficients[2]
   reg_output_m["R^2_mkt", i] <- summary(reg_mkt_m[[i]])$r.squared
-  reg_output_m["RMSE", i] <- sigma(reg_mkt_m[[i]])
+  reg_output_m["RMSE", i] <- stats::sigma(reg_mkt_m[[i]])
   reg_output_m["SR", i] <- trading_months * 
     (mean(returns_m[,names[i]] - returns_m$rf)) / 
-    (sqrt(trading_months) * sd(returns_m[,names[i]]))
+    (sqrt(trading_months) * sd(returns_m[,names[i]] - returns_m$rf))
   reg_output_m["Appr_Ratio", i] <- sqrt(trading_months) * 
     reg_output_m["alpha_mkt", i] / reg_output_m["RMSE", i]
   reg_output_m["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
@@ -348,16 +369,16 @@ for (i in 1:length(names)) {
   reg_output_cost_m["alpha_mkt", i] <- reg_mkt_cost_m[[i]]$coefficients[1]
   reg_output_cost_m["beta_mkt", i] <- reg_mkt_cost_m[[i]]$coefficients[2]
   reg_output_cost_m["R^2_mkt", i] <- summary(reg_mkt_cost_m[[i]])$r.squared
-  reg_output_cost_m["RMSE", i] <- sigma(reg_mkt_cost_m[[i]])
+  reg_output_cost_m["RMSE", i] <- stats::sigma(reg_mkt_cost_m[[i]])
   reg_output_cost_m["SR", i] <- trading_months * 
     (mean(returns_cost_m[,names[i]] - returns_m$rf)) / 
-    (sqrt(trading_months) * sd(returns_cost_m[,names[i]]))
+    (sqrt(trading_months) * sd(returns_cost_m[,names[i]] - returns_m$rf))
   reg_output_cost_m["Appr_Ratio", i] <- sqrt(trading_months) * 
     reg_output_cost_m["alpha_mkt", i] / reg_output_cost_m["RMSE", i]
   reg_output_cost_m["alpha_FF3", i] <- reg_FF3_cost_m[[i]]$coefficients[1]
 }
 
-stargazer(reg_output_m, type = "text", summary = FALSE)
+stargazer(reg_output_m, type = "text", summary = FALSE, out = "test.htm")
 stargazer(reg_output_cost_m, type = "text", summary = FALSE)
 
 # Compute Breakeven Cost
@@ -371,10 +392,59 @@ breakeven_function <- function(cost, strategy) {
   return(lm(a~b)$coefficients[1])
 }
 
-uniroot(breakeven_function, strategy = 1, lower = 0, upper = 100)$root
-uniroot(breakeven_function, strategy = 2, lower = 0, upper = 100)$root
-uniroot(breakeven_function, strategy = 3, lower = 0, upper = 100)$root
-uniroot(breakeven_function, strategy = 4, lower = 0, upper = 100)$root
+cost_m <- data.frame(matrix(nrow = length(names), ncol = 6))
+colnames(cost_m) <- c("alpha", "|Delta w|", "1bps", "10bps", "14bps", "Break Even")
+rownames(cost_m) <- names
+
+for (i in 1:length(names)) {
+  cost_m[i,1] <- breakeven_function(0, i)
+  cost_m[i,2] <- mean(w_abs_m[,names[i]])
+  cost_m[i,3] <- breakeven_function(0.01, i)
+  cost_m[i,4] <- breakeven_function(0.1, i)
+  cost_m[i,5] <- breakeven_function(0.14, i)
+  cost_m[i,6] <- uniroot(breakeven_function, strategy = i, lower = 0, upper = 100)$root
+}
+
+stargazer(cost_m, type = "text", summary = FALSE, out = "test.htm")
+
+# Leverage Constraint
+leverage_function <- function(leverage, strategy) {
+  returns_le_m <- c(1:(n_months-1))
+  for (i in 1:(n_months-1)) {
+    returns_le_m[i] <- min(weights_m[i, names[strategy]], 1 + leverage) *
+      (returns_m$Mkt[i] - returns_m$rf[i]) + returns_m$rf[i]
+  }
+  a <- trading_months * (returns_le_m - returns_m$rf)
+  return(lm(a~b)$coefficients[1])
+}
+
+leverage_m <- data.frame(matrix(nrow = length(names), ncol = 5))
+colnames(leverage_m) <- c("alpha", "Median Weight", "100%", "50%", "0%")
+rownames(leverage_m) <- names
+
+for (i in 1:length(names)) {
+  leverage_m[i,1] <- breakeven_function(0, i)
+  leverage_m[i,2] <- median(weights_m[,names[i]])
+  leverage_m[i,3] <- leverage_function(1, i)
+  leverage_m[i,4] <- leverage_function(0.5, i)
+  leverage_m[i,5] <- leverage_function(0, i)
+}
+
+stargazer(leverage_m, type = "text", summary = FALSE, out = "test.htm")
+
+# Recession
+reg_rec_m <- vector(mode = "list", length = length(names))
+
+for (i in 1:length(names)) {
+  a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
+  reg_rec_m[[i]] <- lm(a ~ rec + b + b_rec)
+  names(reg_rec_m[[i]]$coefficients) <- 
+    c(names(reg_rec_m[[i]]$coefficients[1]), "Recession", var_names[i], 
+      paste(var_names[i],":rec", sep = ""))
+}
+
+stargazer(reg_rec_m[[1]], reg_rec_m[[2]], reg_rec_m[[3]], reg_rec_m[[4]],
+          type = "text", out = "test.htm")
 
 # Analysis of Results
 stat_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
@@ -395,7 +465,7 @@ stat_ret_cost_m[3,] <- apply(returns_cost_m[,names], 2, skewness)
 stat_ret_cost_m[4,] <- apply(returns_cost_m[,names], 2, kurtosis)
 stat_ret_cost_m[5:9,] <- as.data.frame(apply(returns_cost_m[,names], 2, quantile))
 
-round(stat_ret_m, 4)
+stargazer(stat_ret_m, type = "text",summary = FALSE, out = "table.htm")
 round(stat_ret_cost_m, 4)
 
 stat_weight_m <- data.frame(matrix(ncol = length(names), nrow = length(stat_names),
@@ -409,20 +479,41 @@ stat_weight_m[5:9,] <- as.data.frame(apply(weights_m[,names], 2, quantile))
 round(stat_weight_m, 4)
 
 ggplot(returns_m) +
-  geom_histogram(aes(x=var_managed, color = "Realized Variance"), bins = 100) +
-  geom_histogram(aes(x=ARMA_var_managed, color = "ARMA"), bins = 100) +
-  geom_histogram(aes(x=EWMA_var_managed, color = "EWMA"), bins = 100) +
-  geom_histogram(aes(x=GARCH_var_managed, color = "GARCH"), bins = 100) +
+  geom_density(aes(x=Mkt, color = "Buy and Hold"), adjust = 1) +
+  geom_density(aes(x=var_managed, color = "Realized Variance"), adjust = 1) +
+  geom_density(aes(x=ARMA_var_managed, color = "ARMA"), adjust = 1) +
+  geom_density(aes(x=EWMA_var_managed, color = "EWMA"), adjust = 1) +
+  geom_density(aes(x=GARCH_var_managed, color = "GARCH"), adjust = 1) +
   xlim(-40,40) +
   theme_stata() +
-  scale_color_manual(name = "Strategies", 
+  scale_color_manual(name = "", 
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
 
-################################################################################
-############################## Calculation Stefan ##############################
+returns_rolling_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
+colnames(returns_rolling_m) <- c("Date", "Mkt", names)
+returns_rolling_m$Date <- returns_m$Date
 
+for (i in 1:(n_months -1 )) {
+  returns_rolling_m[i,"Mkt"] <- mean(returns_m[(i-min(i,11)):i,"Mkt"])
+  for (j in 1:length(names)) {
+    returns_rolling_m[i,names[j]] <- mean(returns_m[(i-min(i,11)):i,names[j]])
+  }
+}
+
+ggplot(returns_rolling_m, aes(x=Date)) +
+  geom_line(aes(y = Mkt, color = "Buy and Hold")) +
+  geom_line(aes(y = var_managed, color = "Realized Variance")) +
+  geom_line(aes(y = ARMA_var_managed, color = "ARMA")) +
+  geom_line(aes(y = EWMA_var_managed, color = "EWMA")) +
+  geom_line(aes(y = GARCH_var_managed, color = "GARCH")) +
+  theme_stata() +
+  ggtitle("Rolling One Year Return") +
+  ylab("") +
+  scale_color_manual(name = "", values = c("Buy and Hold" = "black",
+                                           "Realized Variance" = "red", "ARMA" = "blue",
+                                           "EWMA" = "green", "GARCH" = "yellow"))
 # Calculate Drawdowns
 for (i in 1:nrow(tot_ret_m)) {
   if (i==1) {
@@ -435,13 +526,17 @@ for (i in 1:nrow(tot_ret_m)) {
   else {
     tot_ret_m$DD_Mkt[i] <- min(0,(tot_ret_m$Mkt[i]-max(tot_ret_m$Mkt[1:i]))/
                                  max(tot_ret_m$Mkt[1:i]))
-    tot_ret_m$DD_var_managed[i] <- min(0,(tot_ret_m$var_managed[i]-max(tot_ret_m$var_managed[1:i]))/
+    tot_ret_m$DD_var_managed[i] <- 
+      min(0,(tot_ret_m$var_managed[i]-max(tot_ret_m$var_managed[1:i]))/
                                          max(tot_ret_m$var_managed[1:i]))
-    tot_ret_m$DD_ARMA_var_managed[i] <- min(0,(tot_ret_m$ARMA_var_managed[i]-max(tot_ret_m$ARMA_var_managed[1:i]))/
+    tot_ret_m$DD_ARMA_var_managed[i] <- 
+      min(0,(tot_ret_m$ARMA_var_managed[i]-max(tot_ret_m$ARMA_var_managed[1:i]))/
                                               max(tot_ret_m$ARMA_var_managed[1:i]))
-    tot_ret_m$DD_EWMA_var_managed[i] <- min(0,(tot_ret_m$EWMA_var_managed[i]-max(tot_ret_m$EWMA_var_managed[1:i]))/
+    tot_ret_m$DD_EWMA_var_managed[i] <- 
+      min(0,(tot_ret_m$EWMA_var_managed[i]-max(tot_ret_m$EWMA_var_managed[1:i]))/
                                               max(tot_ret_m$EWMA_var_managed[1:i]))
-    tot_ret_m$DD_GARCH_var_managed[i] <- min(0,(tot_ret_m$GARCH_var_managed[i]-max(tot_ret_m$GARCH_var_managed[1:i]))/
+    tot_ret_m$DD_GARCH_var_managed[i] <- 
+      min(0,(tot_ret_m$GARCH_var_managed[i]-max(tot_ret_m$GARCH_var_managed[1:i]))/
                                                max(tot_ret_m$GARCH_var_managed[1:i]))
   }
 }
@@ -458,13 +553,19 @@ ggplot(tot_ret_m, aes(x = Date)) +
                labels = format(dates, "%Y"),
                minor_breaks = NULL) +
   theme(legend.position="bottom") +
+  theme_stata() +
   ggtitle("Drawdown") + 
   xlab("Date") +
   ylab("Drawdown") +
-  scale_color_manual(name = "Strategies", 
+  scale_color_manual(name = "", 
                      values = c("Buy and Hold" = "black", 
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
+
+
+################################################################################
+############################## Calculation Stefan ##############################
+
 
 # Analysis of times when var managed does work well and whether improved strategies perform better
 test <- returns_m
@@ -719,8 +820,7 @@ for (frequ in min_frequ:max_frequ) {
   Acf(variance_ts_c, lag = 22)
   Pacf(variance_ts_c, lag = 22)
   
-  # DISCUSS: aic and bic yield different optimal models --> should we mention?
-  ARMA_model_c <- auto.arima(variance_ts_c, stepwise = FALSE)
+  ARMA_model_c <- auto.arima(variance_ts_c, stepwise = FALSE, approximation = FALSE)
   jarque.test(as.vector(ARMA_model_c$residuals))
   print(ARMA_model_c)
   
@@ -950,8 +1050,7 @@ variance_ts_d <- xts(var_d$variance, order.by = FF_daily$Date)
 Acf(variance_ts_d, lag = 22)
 Pacf(variance_ts_d, lag = 22)
 
-# DISCUSS: aic and bic yield different optimal models --> should we mention?
-ARMA_model_d <- auto.arima(variance_ts_d, stepwise = FALSE)
+ARMA_model_d <- auto.arima(variance_ts_d, stepwise = FALSE, approximation = FALSE)
 jarque.test(as.vector(ARMA_model_d$residuals))
 
 var_d$ARMA_var <- c(fitted(ARMA_model_d)[-1], forecast(ARMA_model_d, h = 1)$mean)

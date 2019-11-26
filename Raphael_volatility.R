@@ -35,8 +35,6 @@ VIX_daily <- VIX_daily %>% subset(subset = Date <= ymd(last_day) & Date >= ymd(f
 n_days <- as.integer(count(FF_daily))
 n_months <- as.integer(count(FF_monthly))
 
-
-
 # VIX_monthly <- data.frame(matrix(ncol = ncol(VIX_daily), nrow = n_months))
 # colnames(VIX_monthly) <- colnames(VIX_daily)
 # VIX_monthly <- VIX_monthly %>% 
