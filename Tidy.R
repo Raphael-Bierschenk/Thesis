@@ -255,7 +255,7 @@ for (i in 1:(n_months-1)) {
 
 # Check Variance
 print(apply(returns_m[,-c(1,3)], 2, var))
-quantile_m <- as.data.frame(apply(weights_m, 2, quantile, 
+quantile_m <- as.data.frame(apply(weights_m[,-1], 2, quantile, 
                                   probs = c(0.5, 0.75, 0.9, 0.99)))
 
 # Calculate Total Return
@@ -319,6 +319,7 @@ ggplot(tot_ret_m, aes(x = Date)) +
                                 "EWMA" = "green", "GARCH" = "yellow"))
 
 # Compute Alpha and Ratios
+output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
 reg_mkt_m <- vector(mode = "list", length = length(names))
 reg_FF3_m <- vector(mode = "list", length = length(names))
 reg_mkt_cost_m <- vector(mode = "list", length = length(names))
@@ -343,7 +344,6 @@ for (i in 1:length(names)) {
   reg_FF3_cost_m[[i]] <- lm(a ~ b + b1 + b2)
 }
 
-output_names <- c("alpha_mkt", "beta_mkt", "R^2_mkt", "RMSE", "SR", "Appr_Ratio", "alpha_FF3")
 reg_output_m <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
 colnames(reg_output_m) <- names
 rownames(reg_output_m) <- output_names
@@ -438,13 +438,12 @@ reg_rec_m <- vector(mode = "list", length = length(names))
 for (i in 1:length(names)) {
   a <- trading_months * (returns_m[, names[i]] - returns_m$rf)
   reg_rec_m[[i]] <- lm(a ~ rec + b + b_rec)
-  names(reg_rec_m[[i]]$coefficients) <- 
-    c(names(reg_rec_m[[i]]$coefficients[1]), "Recession", var_names[i], 
-      paste(var_names[i],":rec", sep = ""))
 }
 
-stargazer(reg_rec_m[[1]], reg_rec_m[[2]], reg_rec_m[[3]], reg_rec_m[[4]],
-          type = "text", out = "test.htm")
+stargazer(reg_rec_m[[1]], reg_rec_m[[2]], reg_rec_m[[3]], reg_rec_m[[4]], 
+          dep.var.labels = names,covariate.labels = c("Recession Indicator", "Market",
+                                                     "Market:Recession"),
+            type = "text", out = "test.htm", keep.stat = c("n", "rsq"))
 
 # Analysis of Results
 stat_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
@@ -562,24 +561,56 @@ ggplot(tot_ret_m, aes(x = Date)) +
                                 "Realized Variance" = "red", "ARMA" = "blue", 
                                 "EWMA" = "green", "GARCH" = "yellow"))
 
+# Source of Alpha
+strat_reg_m <- vector(mode = "list", length = 3)
+m <- trading_months * (returns_m[, names[1]] - returns_m$rf)
+strat_reg_m[[1]] <- lm((trading_months * (returns_m[, names[2]] - returns_m$rf)) ~ m + b)
+strat_reg_m[[2]] <- lm((trading_months * (returns_m[, names[3]] - returns_m$rf)) ~ m + b)
+strat_reg_m[[3]] <- lm((trading_months * (returns_m[, names[4]] - returns_m$rf)) ~ m + b)
 
-################################################################################
-############################## Calculation Stefan ##############################
+stargazer(strat_reg_m[[1]], strat_reg_m[[2]], strat_reg_m[[3]],
+          type = "text", dep.var.labels = c("ARMA","EWMA", "GARCH"), 
+          covariate.labels = c("Market", "Variance Managed"), out = "table.htm",
+          keep.stat = c("n", "rsq"))
 
+# Considering costs
+regression_function <- function(cost, strategy) {
+  returns_var_m <- c(1:(n_months-1))
+  for (i in 1:(n_months-1)) {
+    returns_var_m[i] <- returns_m[i,names[1]] - 
+      w_abs_m[i,names[1]] * cost
+  }
+  
+  returns_c_m <- c(1:(n_months-1))
+  for (i in 1:(n_months-1)) {
+    returns_c_m[i] <- returns_m[i,names[strategy]] - 
+      w_abs_m[i,names[strategy]] * cost
+  }
+  a <- trading_months * (returns_c_m - returns_m$rf)
+  m <- trading_months * (returns_var_m - returns_m$rf)
+  return(lm(a ~ m + b))
+}
+cost_vector <- c(0.01, 0.1, 0.14, 0.3)
+cost_m <- data.frame(matrix(nrow = length(cost_vector), ncol = length(names[-1])))
+colnames(cost_m) <- names[-1]
+rownames(cost_m) <- paste(cost_vector * 100, "bps")
+for (i in 1:length(names[-1])) {
+  for (j in 1: length(cost_vector)) {
+    cost_m[j,i] <- paste(round(coefficients(regression_function(cost_vector[j],i+1))[1],2),
+                         " (", 
+                         round(summary(regression_function(cost_vector[j],i+1))$coefficient[1,4], 3),
+                         ")", sep = "")
+  }
+}
+
+stargazer(cost_m, type = "text", summary = FALSE, out = "test.htm")
 
 # Analysis of times when var managed does work well and whether improved strategies perform better
-test <- returns_m
-test$weight <- (test$var_managed - test$rf) / (test$Mkt - test$rf)
-test$weight_ARMA <- (test$ARMA_var_managed - test$rf) / (test$Mkt - test$rf)
-test$weight_EWMA <- (test$EWMA_var_managed - test$rf) / (test$Mkt - test$rf)
-test$weight_GARCH <- (test$GARCH_var_managed - test$rf) / (test$Mkt - test$rf)
-  
-filter(test, var_managed < -10 & weight > 2)
-
-# Idea: Look at correlations between Mkt and other strategies and compare it to correlations in extreme periods
-# The lower the correlation to Mkt, the better the strategy because it acts less like var_managed then
-# Fact: correlation between Mkt and strategy is almost equal to regression beta
-# This is due to Variance of Mkt-rf and strategy almost being equal (Var(Mkt)=Var(strategy))
+bd_times <- returns_m
+bd_times$weight <- weights_m$var_managed
+bd_times$weight_ARMA <- weights_m$ARMA_var_managed
+bd_times$weight_EWMA <- weights_m$EWMA_var_managed
+bd_times$weight_GARCH <- weights_m$GARCH_var_managed
 
 # Function RMSD: Root Mean Square Deviation
 RMSD <- function (x) {
@@ -598,19 +629,27 @@ RMSD <- function (x) {
 cor(returns_m[c(2,4:7)]-returns_m[,3])
 
 # Analysis of Correlations and RMSD
-analysis_matrix_rownames <- c("No. of obs.", "Corr Mkt-Var extreme", "Corr Mkt-ARMA extreme",
-                              "Corr Mkt-EWMA extreme", "Corr Mkt-GARCH extreme", "Corr Var-ARMA extreme",
-                              "Corr Var-EWMA extreme", "Corr Var-GARCH extreme", "RMSD Mkt-Var extreme",
-                              "RMSD Mkt-ARMA extreme", "RMSD Mkt-EWMA extreme", "RMSD Mkt-GARCH extreme",
-                              "RMSD Var-ARMA extreme", "RMSD Var-EWMA extreme",  "RMSD Var-GARCH extreme")
-analysis_matrix_colnames <- c("Whole Sample", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
-                              "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
-analysis_matrix <- data.frame(matrix(nrow = length(analysis_matrix_rownames), ncol = length(analysis_matrix_colnames)))
-rownames(analysis_matrix) <- analysis_matrix_rownames
-colnames(analysis_matrix) <- analysis_matrix_colnames
+analysis_matrix_rownames_cor <- c("No. of obs.", "Corr Mkt-Var ", "Corr Mkt-ARMA ",
+                              "Corr Mkt-EWMA ", "Corr Mkt-GARCH ", "Corr Var-ARMA ",
+                              "Corr Var-EWMA ", "Corr Var-GARCH ")
+analysis_matrix_rownames_rmsd <- c("No. of obs.", "RMSD Mkt-Var ", "RMSD Mkt-ARMA ",
+                                   "RMSD Mkt-EWMA ", "RMSD Mkt-GARCH ", "RMSD Var-ARMA ",
+                                   "RMSD Var-EWMA ", "RMSD Var-GARCH ")
+analysis_matrix_colnames <- c("Whole Sample", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1",
+                              "| Var < -10%, w > 1", "| Var < -15%, w > 1")
+analysis_matrix_cor <- data.frame(matrix(nrow = length(analysis_matrix_rownames_cor), 
+                                     ncol = length(analysis_matrix_colnames)))
+analysis_matrix_rmsd <- data.frame(matrix(nrow = length(analysis_matrix_rownames_rmsd), 
+                                         ncol = length(analysis_matrix_colnames)))
+rownames(analysis_matrix_cor) <- analysis_matrix_rownames_cor
+rownames(analysis_matrix_rmsd) <- analysis_matrix_rownames_rmsd
+colnames(analysis_matrix_cor) <- analysis_matrix_colnames
+colnames(analysis_matrix_rmsd) <- analysis_matrix_colnames
 
 # Whole Sample
-analysis_matrix[1,1] <- nrow(returns_m)
+analysis_matrix_cor[1,1] <- nrow(returns_m)
+analysis_matrix_rmsd[1,1] <- nrow(returns_m)
+
 for (i in 1:7) {
   if (i <= 4) {
     col = 1
@@ -619,23 +658,20 @@ for (i in 1:7) {
     col = 2
     j = i %% 4
   }
-  analysis_matrix[i + 1, 1] <- cor(returns_m[c(2,4:7)])[j + col, col]
-  analysis_matrix[i + 8, 1] <- RMSD(returns_m[c(2,4:7)])[j + col, col]
+  analysis_matrix_cor[i + 1, 1] <- cor(returns_m[c(2,4:7)])[j + col, col]
+  analysis_matrix_rmsd[i + 1, 1] <- RMSD(returns_m[c(2,4:7)])[j + col, col]
 }
-nrow(filter(test, Mkt<0))
 
 # Extreme Periods
 extreme_periods <- list()
-extreme_periods[[1]] <- filter(test, Mkt < 0 & weight > 1)
-extreme_periods[[2]] <- filter(test, Mkt < -5 & weight > 1)
-extreme_periods[[3]] <- filter(test, var_managed < -10 & weight > 1)
-extreme_periods[[4]] <- filter(test, var_managed < -15 & weight > 1)
-extreme_periods[[5]] <- filter(test, var_managed < -10 & weight > 3)
-extreme_periods[[6]] <- filter(test, var_managed < -15 & weight > 3)
-extreme_periods
+extreme_periods[[1]] <- filter(bd_times, Mkt < 0 & weight > 0)
+extreme_periods[[2]] <- filter(bd_times, Mkt < -5 & weight > 1)
+extreme_periods[[3]] <- filter(bd_times, var_managed < -10 & weight > 1)
+extreme_periods[[4]] <- filter(bd_times, var_managed < -15 & weight > 1)
 
 for (period in 1:length(extreme_periods)) {
-  analysis_matrix[1, period + 1] <- nrow(extreme_periods[[period]])
+  analysis_matrix_cor[1, period + 1] <- nrow(extreme_periods[[period]])
+  analysis_matrix_rmsd[1, period + 1] <- nrow(extreme_periods[[period]])
   for (i in 1:7) {
     if (i <= 4) {
       col = 1
@@ -644,113 +680,72 @@ for (period in 1:length(extreme_periods)) {
       col = 2
       j = i %% 4
     }
-    analysis_matrix[i + 1, period + 1] <- cor(extreme_periods[[period]][c(2,4:7)])[j + col, col]
-    analysis_matrix[i + 8, period + 1] <- RMSD(extreme_periods[[period]][c(2,4:7)])[j + col, col]
+    analysis_matrix_cor[i + 1, period + 1] <- 
+      cor(extreme_periods[[period]][c(2,4:7)])[j + col, col]
+    analysis_matrix_rmsd[i + 1, period + 1] <- 
+      RMSD(extreme_periods[[period]][c(2,4:7)])[j + col, col]
   }
 }
 
-round(analysis_matrix, 4)
+stargazer(analysis_matrix_cor, summary = FALSE, type = "text", out = "test.htm")
+stargazer(analysis_matrix_rmsd, summary = FALSE, type = "text", out = "test.htm")
 
 # Analysis of Delta w
-analysis_matrix_rownames_2 <- c("Avg. w - Var", "Avg. w - ARMA", "Avg. w - EWMA", "Avg. w - GARCH", "Avg. rel. delta w - ARMA",
-                                "Avg. rel. delta w - EWMA", "Avg. rel. delta w - GARCH")
-analysis_matrix_colnames_2 <- c("w > 1", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", "| Var < -10%, w > 1",
-                                "| Var < -15%, w > 1", "| Var < -10%, w > 3", "| Var < -15%, w > 3")
-analysis_matrix_2 <- data.frame(matrix(nrow = length(analysis_matrix_rownames_2), ncol = length(analysis_matrix_colnames_2)))
-rownames(analysis_matrix_2) <- analysis_matrix_rownames_2
-colnames(analysis_matrix_2) <- analysis_matrix_colnames_2
+analysis_matrix_rownames_2 <- c("Var", "ARMA", "EWMA", "GARCH")
+analysis_matrix_colnames_2 <- c("w > 1", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1", 
+                                "| Var < -10%, w > 1", "| Var < -15%, w > 1")
+analysis_matrix_w <- data.frame(matrix(nrow = length(analysis_matrix_rownames_2), 
+                                       ncol = length(analysis_matrix_colnames_2)))
+rownames(analysis_matrix_w) <- analysis_matrix_rownames_2
+colnames(analysis_matrix_w) <- analysis_matrix_colnames_2
 
-analysis_matrix_2[1, 1] <- mean(filter(test, weight > 1)$weight)
-analysis_matrix_2[2, 1] <- mean(filter(test, weight > 1)$weight_ARMA)
-analysis_matrix_2[3, 1] <- mean(filter(test, weight > 1)$weight_EWMA)
-analysis_matrix_2[4, 1] <- mean(filter(test, weight > 1)$weight_GARCH)
-analysis_matrix_2[5, 1] <- mean(filter(test, weight > 1)$weight_ARMA - filter(test, weight > 1)$weight) /
-  mean(filter(test, weight > 1)$weight)
-analysis_matrix_2[6, 1] <- mean(filter(test, weight > 1)$weight_EWMA - filter(test, weight > 1)$weight) /
-  mean(filter(test, weight > 1)$weight)
-analysis_matrix_2[7, 1] <- mean(filter(test, weight > 1)$weight_GARCH - filter(test, weight > 1)$weight) /
-  mean(filter(test, weight > 1)$weight)
+analysis_matrix_rel_w <- data.frame(matrix(nrow = length(analysis_matrix_rownames_2), 
+                                       ncol = length(analysis_matrix_colnames_2)))
+rownames(analysis_matrix_rel_w) <- analysis_matrix_rownames_2
+colnames(analysis_matrix_rel_w) <- analysis_matrix_colnames_2
+
+analysis_matrix_w[1, 1] <- mean(filter(bd_times, weight > 1)$weight)
+analysis_matrix_w[2, 1] <- mean(filter(bd_times, weight > 1)$weight_ARMA)
+analysis_matrix_w[3, 1] <- mean(filter(bd_times, weight > 1)$weight_EWMA)
+analysis_matrix_w[4, 1] <- mean(filter(bd_times, weight > 1)$weight_GARCH)
 
 for (period in 1:length(extreme_periods)) {
-  analysis_matrix_2[1, period + 1] <- mean(extreme_periods[[period]]$weight)
-  analysis_matrix_2[2, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA)
-  analysis_matrix_2[3, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA)
-  analysis_matrix_2[4, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH)
-  analysis_matrix_2[5, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight) /
+  analysis_matrix_w[1, period + 1] <- mean(extreme_periods[[period]]$weight)
+  analysis_matrix_w[2, period + 1] <- mean(extreme_periods[[period]]$weight_ARMA)
+  analysis_matrix_w[3, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA)
+  analysis_matrix_w[4, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH)
+}
+
+analysis_matrix_rel_w[1, 1] <- 
+  mean(filter(bd_times, weight > 1)$weight - filter(bd_times, weight > 1)$weight) /
+  mean(filter(bd_times, weight > 1)$weight)
+analysis_matrix_rel_w[2, 1] <- 
+  mean(filter(bd_times, weight > 1)$weight_ARMA - filter(bd_times, weight > 1)$weight) /
+  mean(filter(bd_times, weight > 1)$weight)
+analysis_matrix_rel_w[3, 1] <- 
+  mean(filter(bd_times, weight > 1)$weight_EWMA - filter(bd_times, weight > 1)$weight) /
+  mean(filter(bd_times, weight > 1)$weight)
+analysis_matrix_rel_w[4, 1] <- 
+  mean(filter(bd_times, weight > 1)$weight_GARCH - filter(bd_times, weight > 1)$weight) /
+  mean(filter(bd_times, weight > 1)$weight)
+
+for (period in 1:length(extreme_periods)) {
+  analysis_matrix_rel_w[1, period + 1] <- 
+    mean(extreme_periods[[period]]$weight - extreme_periods[[period]]$weight) /
     mean(extreme_periods[[period]]$weight)
-  analysis_matrix_2[6, period + 1] <- mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight) /
+  analysis_matrix_rel_w[2, period + 1] <- 
+    mean(extreme_periods[[period]]$weight_ARMA - extreme_periods[[period]]$weight) /
     mean(extreme_periods[[period]]$weight)
-  analysis_matrix_2[7, period + 1] <- mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight) /
+  analysis_matrix_rel_w[3, period + 1] <- 
+    mean(extreme_periods[[period]]$weight_EWMA - extreme_periods[[period]]$weight) /
+    mean(extreme_periods[[period]]$weight)
+  analysis_matrix_rel_w[4, period + 1] <- 
+    mean(extreme_periods[[period]]$weight_GARCH - extreme_periods[[period]]$weight) /
     mean(extreme_periods[[period]]$weight)
 }
 
-round(analysis_matrix_2, 4)
-
-
-
-# 1
-# Results for periods of negative return and weight > 1
-# No. of obs. = 185
-# Var and ARMA much higher corr to Mkt, ARMA higher corr to Var
-# EWMA and GARCH lower corr to Mkt and lower corr to Var
-#  -> behave less like Var -> better during these periods
-
-# 2
-# Results for periods of Mkt returns < -5% and weight > 1
-# No. of obs. = 24
-# Var and ARMA slightly higher corr to Mkt, ARMA lower corr to Var
-# EWMA and GARCH basically uncorrelated to Mkt and strikingly lower corr to Var
-#  -> behave much less like Var -> much better during these periods
-
-# 3
-# Results for periods of var managed returns < -10% and weight > 1
-# No. of obs. = 21
-# Var and ARMA higher corr to Mkt, ARMA lower corr to Var
-# EWMA and GARCH strikingly lower corr to Mkt and Var
-#  -> behave much less like Var -> much better during these periods
-
-# 4
-# Results for periods of var managed returns < -15% and weight > 1
-# No. of obs. = 12
-# Var and ARMA higher corr to Mkt, ARMA lower corr to Var
-# With only the most extreme datapoints left, EWMA and GARCH are even negatively correlated to Mkt and var now
-#  -> In most extreme negative cases, EWMA and GARCH behave in the opposite fashion of Var, which is super nice
-
-# 5
-extreme_period_5 <- print(filter(test, var_managed < -10 & weight > 3))
-cor(returns_m[c(2,4:7)])
-cor(extreme_period_5[c(2,4:7)])
-RMSD(returns_m[c(2,4:7)])
-RMSD(extreme_period_5[c(2,4:7)])
-# Results for periods of var managed returns < -10% and weight > 3
-# No. of obs. = 11
-# High weights already implies higher correlation -> not that meaningful anymore
-# We take a look at root mean square deviation now
-# RMSD of Var increased by far the most
-# The other three increased not that much
-# Relatively, ARMA increased the most of the three and EWMA the least
-
-# 6
-extreme_period_6 <- print(filter(test, var_managed < -15 & weight > 3))
-cor(returns_m[c(2,4:7)])
-cor(extreme_period_6[c(2,4:7)])
-RMSD(returns_m[c(2,4:7)])
-RMSD(extreme_period_6[c(2,4:7)])
-# Results for periods of var managed returns < -15% and weight > 3
-# No. of obs. = 6
-# RMSD of Var increased by far the most
-# ARMA almost doubled, whereas EWMA and GARCH increased by roughly the same percentage
-
-
-
-# Excel Output
-test$Mkt_performance <- tot_ret_m$Mkt[-1]
-test$var_performance <- tot_ret_m$var_managed[-1]
-test$ARMA_performance <- tot_ret_m$ARMA_var_managed[-1]
-test$EWMA_performance <- tot_ret_m$EWMA_var_managed[-1]
-test$GARCH_performance <- tot_ret_m$GARCH_var_managed[-1]
-write_excel_csv(test, "test_output.csv")
-
+stargazer(analysis_matrix_w, summary = FALSE, type = "text", out = "test.htm")
+stargazer(analysis_matrix_rel_w, summary = FALSE, type = "text", out = "test.htm")
 
 ################################################################################
 #******************************** Custom Level ********************************#
@@ -992,7 +987,7 @@ for (frequ in min_frequ:max_frequ) {
   for (i in 1:length(names)) {
     reg_output_c[[mod_num]]["alpha_mkt", i] <- reg_mkt_c[[i]]$coefficients[1]
     reg_output_c[[mod_num]]["R^2_mkt", i] <- summary(reg_mkt_c[[i]])$r.squared
-    reg_output_c[[mod_num]]["RMSE", i] <- sigma(reg_mkt_c[[i]])
+    reg_output_c[[mod_num]]["RMSE", i] <- stats::sigma(reg_mkt_c[[i]])
     reg_output_c[[mod_num]]["Appr_Ratio", i] <- sqrt(252 / frequ) * 
       reg_output_c[[mod_num]]["alpha_mkt", i] / reg_output_c[[mod_num]]["RMSE", i]
   }
@@ -1000,7 +995,7 @@ for (frequ in min_frequ:max_frequ) {
   for (i in 1:length(names)) {
     reg_output_cost_c[[mod_num]]["alpha_mkt", i] <- reg_mkt_cost_c[[i]]$coefficients[1]
     reg_output_cost_c[[mod_num]]["R^2_mkt", i] <- summary(reg_mkt_cost_c[[i]])$r.squared
-    reg_output_cost_c[[mod_num]]["RMSE", i] <- sigma(reg_mkt_cost_c[[i]])
+    reg_output_cost_c[[mod_num]]["RMSE", i] <- stats::sigma(reg_mkt_cost_c[[i]])
     reg_output_cost_c[[mod_num]]["Appr_Ratio", i] <- sqrt(252 / frequ) * 
       reg_output_cost_c[[mod_num]]["alpha_mkt", i] / reg_output_cost_c[[mod_num]]["RMSE", i]
   }
@@ -1201,7 +1196,7 @@ for (i in 1:length(names_d)) {
   reg_output_d["alpha_mkt", i] <- reg_mkt_d[[i]]$coefficients[1]
   reg_output_d["beta_mkt", i] <- reg_mkt_d[[i]]$coefficients[2]
   reg_output_d["R^2_mkt", i] <- summary(reg_mkt_d[[i]])$r.squared
-  reg_output_d["RMSE", i] <- sigma(reg_mkt_d[[i]])
+  reg_output_d["RMSE", i] <- stats::sigma(reg_mkt_d[[i]])
   reg_output_d["SR", i] <- 252 * (mean(returns_d[,names_d[i]] - returns_d$RF)) / 
     (sqrt(252) * sd(returns_d[,names_d[i]]))
   reg_output_d["Appr_Ratio", i] <- sqrt(252) * reg_output_d["alpha_mkt", i] /
