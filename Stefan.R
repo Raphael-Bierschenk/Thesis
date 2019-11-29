@@ -1,6 +1,8 @@
 rm(list = ls())
 options(warn=-1)
 
+start_time <- Sys.time()
+
 library(readr)
 library(ggplot2)
 library(scales)
@@ -72,11 +74,18 @@ for (i in 2:nrow(FF_daily)) {
 #                    Strategies with flexible time periods                     #
 ################################################################################
 
-output_names <- c("alpha_mkt", "alpha_mkt_se", "alpha_mkt_pval", "alpha_ff3",
-                  "alpha_ff3_se", "alpha_ff3_pval", "beta_mkt", "beta_mkt_se",
-                  "beta_mkt_pval", "N", "R^2_mkt", "RMSE_mkt", "SR_new",
-                  "Appr_Ratio", "Performance")
-combined_output_flex <- data.frame(row.names = output_names)
+# Generate output lists
+returns_flex_list <- list()
+
+reg_models_flex_mkt <- list()
+reg_models_flex_mkt_1bps <- list()
+reg_models_flex_mkt_10bps <- list()
+reg_models_flex_mkt_14bps <- list()
+
+reg_models_flex_ff3 <- list()
+reg_models_flex_ff3_1bps <- list()
+reg_models_flex_ff3_10bps <- list()
+reg_models_flex_ff3_14bps <- list()
 
 # Determine intervals for variances
 min_days_for_var = 5
@@ -112,17 +121,17 @@ for (i in 1:nrow(daily_vars))
   daily_vars$GARCH[i] <- FF_daily$GARCH_vars[i+min_days_for_var-1]*10000
 }
 
-ggplot(daily_vars, aes(Date)) + 
-  geom_line(aes(y=sqrt(252*EWMA), colour="EWMA")) + 
-  geom_line(aes(y=sqrt(252*GARCH), colour="GARCH")) + 
-  geom_line(aes(y=sqrt(252*Var_5), colour="Var_5")) + 
-  geom_line(aes(y=sqrt(252*Var_11), colour="Var_11")) + 
-  geom_line(aes(y=sqrt(252*Var_22), colour="Var_22")) + 
-  geom_line(aes(y=sqrt(252*Var_44), colour="Var_44")) + 
-  geom_line(aes(y=sqrt(252*Var_66), colour="Var_66")) + 
-  geom_line(aes(y=sqrt(252*Var_126), colour="Var_126")) +
-  geom_line(aes(y=sqrt(252*Var_252), colour="Var_252")) +
-  geom_line(aes(y=sqrt(252*Var_504), colour="Var_504"))
+# ggplot(daily_vars, aes(Date)) + 
+#   geom_line(aes(y=sqrt(252*EWMA), colour="EWMA")) + 
+#   geom_line(aes(y=sqrt(252*GARCH), colour="GARCH")) + 
+#   geom_line(aes(y=sqrt(252*Var_5), colour="Var_5")) + 
+#   geom_line(aes(y=sqrt(252*Var_11), colour="Var_11")) + 
+#   geom_line(aes(y=sqrt(252*Var_22), colour="Var_22")) + 
+#   geom_line(aes(y=sqrt(252*Var_44), colour="Var_44")) + 
+#   geom_line(aes(y=sqrt(252*Var_66), colour="Var_66")) + 
+#   geom_line(aes(y=sqrt(252*Var_126), colour="Var_126")) +
+#   geom_line(aes(y=sqrt(252*Var_252), colour="Var_252")) +
+#   geom_line(aes(y=sqrt(252*Var_504), colour="Var_504"))
 
 # Calculate percentage deviations of all variances
 for (i in 6:15) {
@@ -145,8 +154,8 @@ quantiles
 
 strategies <- colnames(daily_vars[16:25])
 
-quantile = 1
-strategy <- "Var_5_perc_dev"
+quantile = 3
+strategy <- "Var_252_perc_dev"
 
 for (quantile in 1:length(quantiles))
 {
@@ -261,22 +270,79 @@ for (quantile in 1:length(quantiles))
     reg_flex_mkt_10bps <- lm(VMR_10bps[-1] - RF[-1] ~ `Mkt-RF`[-1], returns_flex)
     reg_flex_mkt_14bps <- lm(VMR_14bps[-1] - RF[-1] ~ `Mkt-RF`[-1], returns_flex)
     
-    robust_se_mkt <- sqrt(diag(vcovHC(model_mkt, type = "HC")))
-    
-    stargazer(reg_flex_EWMA, type = "text", out = "testt.htm",
-              dep.var.labels = "Volatility-managed return",
-              covariate.labels = "Market return",
-              omit.stat = c("f", "adj.rsq"))
-    
     # Regressions on FF3 factors
     reg_flex_ff3 <- lm(VMR[-1] - RF[-1] ~ `Mkt-RF`[-1] + SMB[-1] + HML[-1], returns_flex)
     reg_flex_ff3_1bps <- lm(VMR_1bps[-1] - RF[-1] ~ `Mkt-RF`[-1] + SMB[-1] + HML[-1], returns_flex)
     reg_flex_ff3_10bps <- lm(VMR_10bps[-1] - RF[-1] ~ `Mkt-RF`[-1] + SMB[-1] + HML[-1], returns_flex)
     reg_flex_ff3_14bps <- lm(VMR_14bps[-1] - RF[-1] ~ `Mkt-RF`[-1] + SMB[-1] + HML[-1], returns_flex)
+    
+    # Write return data frame and regression models to output lists
+    index <- match(strategy, strategies) + 10*(quantile - 1)
+    
+    returns_flex_list[[index]] <- returns_flex
+    
+    reg_models_flex_mkt[[index]] <- reg_flex_mkt
+    reg_models_flex_mkt_1bps[[index]] <- reg_flex_mkt_1bps
+    reg_models_flex_mkt_10bps[[index]] <- reg_flex_mkt_10bps
+    reg_models_flex_mkt_14bps[[index]] <- reg_models_flex_mkt_14bps
+    
+    reg_models_flex_ff3[[index]] <- reg_models_flex_ff3
+    reg_models_flex_ff3_1bps[[index]] <- reg_models_flex_ff3_1bps
+    reg_models_flex_ff3_10bps[[index]] <- reg_models_flex_ff3_10bps
+    reg_models_flex_ff3_14bps[[index]] <- reg_models_flex_ff3_14bps
   }
 }
+
+# function for showing significance stars of FF3 alpha in output table
+ff3_alpha_stars <- function(model)
+{
+  p_val <- coeftest(model, vcovHC(model, type = "HC"))[1,4]
+  stars <- ""
+  if (p_val < 0.01) {
+    stars <- "***"
+  } else if (p_val < 0.05) {
+    stars <- "**"
+  } else if (p_val < 0.1) {
+    stars <- "*"
+  }
+  return (stars)
+}
+
+# Create table for one year strategy
+indices_one_year <- c(7, 17, 27, 37, 47)
+models_one_year <- list()
+se_one_year <- list()
+SR_one_year
+appr_ratio_one_year
+
+for (index in indices_one_year) {
   
-  
+}
+robust_se_flex_mkt <- sqrt(diag(vcovHC(reg_flex_mkt, type = "HC")))
+robust_se_flex_ff3 <- sqrt(diag(vcovHC(reg_flex_ff3, type = "HC")))
+SR_new <- mean(returns_flex$VMR - returns_flex$RF) / sd(returns_flex$VMR - returns_flex$RF) * sqrt(factor)
+appr_ratio <- reg_flex_mkt$coefficients[1]/stats::sigma(reg_flex_mkt) * sqrt(factor)
+
+
+stargazer(reg_flex_mkt, 
+          se = list(robust_se_flex_mkt),
+          type = "text", out = "table_one_year.htm",
+          dep.var.labels = "Volatility-managed return",
+          covariate.labels = c("Mkt-RF", "Alpha"),
+          omit.stat = c("f", "adj.rsq"), df = FALSE,
+          table.layout = "-ld-t-s-a-n",
+          digits = 2,
+          add.lines = list(c("Vol-Managed Sharpe", round(SR_new,3)),
+                           c("Appraisal Ratio", round(appr_ratio,3)),
+                           c("Alpha FF3", paste(round(reg_flex_ff3$coefficients[1],3),
+                                                ff3_alpha_stars(reg_flex_ff3),sep = "")),
+                           c("", paste("(",round(robust_se_flex_ff3[1],3),")",sep = ""))))
+
+
+
+end_time <- Sys.time()
+
+end_time - start_time
   
 
 # ***** Plot market and VM returns on log scale *****
@@ -361,10 +427,6 @@ for (i in 2:nrow(FF_monthly)) {
   market_returns[i,2] <- market_returns[i-1,2]*(1 + FF_monthly$Mkt[i]/100)
 }
 
-stargazer(reg_flex_EWMA, type = "text", out = "testt.htm",
-          dep.var.labels = "Volatility-managed return",
-          covariate.labels = "Market return",
-          omit.stat = c("f", "adj.rsq"))
 
 
 # alpha and apprasial ratio table (costs <-> interval)
