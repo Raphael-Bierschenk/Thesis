@@ -19,6 +19,9 @@ library(moments)
 library(optimx)
 library(stargazer)
 library(rugarch)
+library(sandwich)
+library(lmtest)
+library(extrafont)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -149,17 +152,39 @@ var_m$GARCH_var <- var_m$GARCH_var * 10000
 var_m$GARCH_vol <- sqrt(var_m$GARCH_var)
 
 # Analyze Variance Estimates
+blue_col <- brewer.pal(9, name = "Blues")[c(5,7,8)]
+green_col <- brewer.pal(9, name = "Greens")[5]
+grey_col <- brewer.pal(9, name = "Greys")[5]
+line_size <- 0.7
+loadfonts(device = "win")
+windowsFonts(Times = windowsFont("TT Times New Roman"))
+
 ggplot(var_m, aes(x = date)) +
-  geom_line(aes(y = vol * sqrt(trading_months), color = "Realized Variance")) +
-  geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA")) +
-  geom_line(aes(y = EWMA_vol * sqrt(trading_months), color = "EWMA")) +
-  geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH")) +
-  theme_minimal() +
+  geom_line(aes(y = vol * sqrt(trading_months), color = "Realized Variance"),
+            size = line_size) +
+  geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA"),
+            size = line_size) +
+  geom_line(aes(y = EWMA_vol * sqrt(trading_months), color = "EWMA"),
+            size = line_size) +
+  geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH"),
+            size = line_size) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
   ggtitle("Annualized Volatility") +
-  ylab("") +
-  scale_color_manual(name = "", values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  xlab("") + ylab("") +
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col,
+                                           "Realized Variance" = green_col,
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 var_names <- c("var", "ARIMA_var", "EWMA_var", "GARCH_var")
 var_var_reg_m <- vector(mode = "list", length = length(var_names))
@@ -250,17 +275,14 @@ for (i in 2:n_months) {
 tot_ret_m[n_months,]
 
 # ***** Plot market and VM returns on log scale *****
-scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
-           200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
-           20000,30000,40000,50000,60000,70000,80000,90000,100000)
 dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10 years")
 ggplot(tot_ret_m, aes(x = date)) +
-  geom_line(aes(y=mkt, color = "Buy and Hold")) +
-  geom_line(aes(y=var_managed, color = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, color = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, color = "GARCH")) +
-  scale_x_date(limits = as.Date(c("1926-7-1", "2019-8-1")),
+  geom_line(aes(y=mkt, color = "Buy and Hold"),size = line_size) +
+  geom_line(aes(y=var_managed, color = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, color = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, color = "GARCH"), size = line_size) +
+  scale_x_date(limits = as.Date(c("1920-1-1", "2025-1-1")),
                expand = c(0,0),
                breaks = dates,
                labels = format(dates, "%Y"),
@@ -271,18 +293,27 @@ ggplot(tot_ret_m, aes(x = date)) +
                      labels = trans_format('log10', math_format(10^.x)),
                      limits = c(0.1,100000),
                      expand = c(0,0)) +
-  theme(legend.position="bottom") +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank()) +
   ggtitle("Cumulative Performance") + 
   xlab("Date") +
   ylab("Performance") +
-  theme_stata() + 
-  scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 # Run Regressions to Determine Alpha, Beta, etc.
 reg_mkt_m <- vector(mode = "list", length = length(names))
+reg_mkt_se_m <- vector(mode = "list", length = length(names))
 reg_FF3_m <- vector(mode = "list", length = length(names))
 
 b_m <- trading_months * returns_m$`mkt-rf`
@@ -299,6 +330,11 @@ reg_mkt_m[[1]] <- lm(a_m[,names[1]] ~ b_m)
 reg_mkt_m[[2]] <- lm(a_m[,names[2]] ~ b_m)
 reg_mkt_m[[3]] <- lm(a_m[,names[3]] ~ b_m)
 reg_mkt_m[[4]] <- lm(a_m[,names[4]] ~ b_m)
+
+for (i in 1:length(names)) {
+  reg_mkt_se_m[[i]] <- reg_mkt_m[[i]] %>% 
+    vcovHC(type = "HC") %>% sqrt() %>% diag()
+}
 
 reg_FF3_m[[1]] <- lm(a_m[,names[1]] ~ b_m + b1_m + b2_m)
 reg_FF3_m[[2]] <- lm(a_m[,names[2]] ~ b_m + b1_m + b2_m)
@@ -328,6 +364,8 @@ reg_output_m <- format(round(reg_output_m, 2), nsmall = 2)
 
 # Output Results
 stargazer(reg_mkt_m[[1]], reg_mkt_m[[2]], reg_mkt_m[[3]], reg_mkt_m[[4]],
+          se = list(reg_mkt_se_m[[1]], reg_mkt_se_m[[2]],
+                    reg_mkt_se_m[[3]], reg_mkt_se_m[[4]]),
           type = "text", omit.stat = "all", 
           dep.var.labels = c("Var", "ARIMA","EWMA", "GARCH"), 
           covariate.labels = c("Market", "Alpha"),
@@ -388,6 +426,7 @@ stargazer(leverage_m, type = "text", summary = FALSE, out = "test.htm")
 
 # Run Regressions Controlling for Recessions
 reg_rec_m <- vector(mode = "list", length = length(names))
+reg_rec_se_m <- vector(mode = "list", length = length(names))
 
 rec_m <- recession$indicator[-1]
 b_rec_m <- trading_months * returns_m$`mkt-rf` * recession$indicator[-1]
@@ -397,7 +436,14 @@ reg_rec_m[[2]] <- lm(a_m[,names[2]] ~ b_m + b_rec_m + rec_m)
 reg_rec_m[[3]] <- lm(a_m[,names[3]] ~ b_m + b_rec_m + rec_m)
 reg_rec_m[[4]] <- lm(a_m[,names[4]] ~ b_m + b_rec_m + rec_m)
 
-stargazer(reg_rec_m[[1]], reg_rec_m[[2]], reg_rec_m[[3]], reg_rec_m[[4]], 
+for (i in 1:length(names)) {
+  reg_rec_se_m[[i]] <- reg_rec_m[[i]] %>% 
+    vcovHC(type = "HC") %>% sqrt() %>% diag()
+}
+
+stargazer(reg_rec_m[[1]], reg_rec_m[[2]], reg_rec_m[[3]], reg_rec_m[[4]],
+          se = list(reg_rec_se_m[[1]], reg_rec_se_m[[2]], 
+                    reg_rec_se_m[[3]], reg_rec_se_m[[4]]),
           dep.var.labels = c("Var", "ARIMA","EWMA", "GARCH"),
           covariate.labels = c("Market", "Market:Recession", "Recession Const"),
             type = "text", out = "test.htm", keep.stat = c("n", "rsq"))
@@ -418,11 +464,16 @@ stargazer(stat_ret_m, type = "text",summary = FALSE, out = "table.htm", digits =
 
 # Plot Density Function of Returns
 ggplot(returns_m) +
-  geom_density(aes(x=mkt, color = "Buy and Hold"), adjust = 1) +
-  geom_density(aes(x=var_managed, color = "Realized Variance"), adjust = 1) +
-  geom_density(aes(x=ARIMA_var_managed, color = "ARIMA"), adjust = 1) +
-  geom_density(aes(x=EWMA_var_managed, color = "EWMA"), adjust = 1) +
-  geom_density(aes(x=GARCH_var_managed, color = "GARCH"), adjust = 1) +
+  geom_density(aes(x=mkt, color = "Buy and Hold"), 
+               adjust = 1, size = line_size) +
+  geom_density(aes(x=var_managed, color = "Realized Variance"), 
+               adjust = 1, size = line_size) +
+  geom_density(aes(x=ARIMA_var_managed, color = "ARIMA"), 
+               adjust = 1, size = line_size) +
+  geom_density(aes(x=EWMA_var_managed, color = "EWMA"), 
+               adjust = 1, size = line_size) +
+  geom_density(aes(x=GARCH_var_managed, color = "GARCH"), 
+               adjust = 1, size = line_size) +
   xlim(-40,40) +
   theme_stata() +
   scale_color_manual(name = "", 
@@ -444,17 +495,19 @@ for (i in 1:(n_months -1 )) {
 }
 
 ggplot(returns_rolling_m, aes(x=date)) +
-  geom_line(aes(y = mkt, color = "Buy and Hold")) +
-  geom_line(aes(y = var_managed, color = "Realized Variance")) +
-  geom_line(aes(y = ARIMA_var_managed, color = "ARIMA")) +
-  geom_line(aes(y = EWMA_var_managed, color = "EWMA")) +
-  geom_line(aes(y = GARCH_var_managed, color = "GARCH")) +
+  geom_line(aes(y = mkt, color = "Buy and Hold"), size = line_size) +
+  geom_line(aes(y = var_managed, color = "Realized Variance"), size = line_size) +
+  geom_line(aes(y = ARIMA_var_managed, color = "ARIMA"), size = line_size) +
+  geom_line(aes(y = EWMA_var_managed, color = "EWMA"), size = line_size) +
+  geom_line(aes(y = GARCH_var_managed, color = "GARCH"), size = line_size) +
   theme_stata() +
   ggtitle("Rolling One Year Return") +
   ylab("") +
-  scale_color_manual(name = "", values = c("Buy and Hold" = "black",
-                                           "Realized Variance" = "red", "ARIMA" = "blue",
-                                           "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 # Calculate Drawdowns
 drawdown_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
 colnames(drawdown_m) <- c("date", "mkt", names)
@@ -471,20 +524,21 @@ for (i in 2:(n_months - 1)) {
 }
 
 ggplot(drawdown_m, aes(x = date)) +
-  geom_line(aes(y=mkt, color = "Buy and Hold")) +
-  geom_line(aes(y=var_managed, color = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, color = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, color = "GARCH")) +
+  geom_line(aes(y=mkt, color = "Buy and Hold"), size = line_size) +
+  geom_line(aes(y=var_managed, color = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, color = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, color = "GARCH"), size = line_size) +
   theme(legend.position="bottom") +
   theme_stata() +
   ggtitle("Drawdown") + 
   xlab("Date") +
   ylab("Drawdown") +
-  scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 # Analysis of Weights
 stat_weight_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
@@ -501,13 +555,22 @@ stat_weight_m[5:11,] <- as.data.frame(apply(weights_m[,names], 2, quantile,
 stargazer(stat_weight_m, type = "text",summary = FALSE, out = "table.htm", digits = 2)
 
 # Source of Alpha of ALternative Strategies
-strat_reg_m <- vector(mode = "list", length = 3)
+reg_strat_m <- vector(mode = "list", length = length(names) - 1)
+reg_strat_se_m <- vector(mode = "list", length = length(names) - 1)
 
-strat_reg_m[[1]] <- lm(a_m[,names[2]] ~ a_m[,names[1]] + b_m)
-strat_reg_m[[2]] <- lm(a_m[,names[3]] ~ a_m[,names[1]] + b_m)
-strat_reg_m[[3]] <- lm(a_m[,names[4]] ~ a_m[,names[1]] + b_m)
+reg_strat_m[[1]] <- lm(a_m[,names[2]] ~ a_m[,names[1]] + b_m)
+reg_strat_m[[2]] <- lm(a_m[,names[3]] ~ a_m[,names[1]] + b_m)
+reg_strat_m[[3]] <- lm(a_m[,names[4]] ~ a_m[,names[1]] + b_m)
 
-stargazer(strat_reg_m[[1]], strat_reg_m[[2]], strat_reg_m[[3]],
+for (i in 1:(length(names) - 1)) {
+  reg_strat_se_m[[i]] <- reg_strat_m[[i]] %>% 
+    vcovHC(type = "HC") %>% sqrt() %>% diag()
+}
+
+
+stargazer(reg_strat_m[[1]], reg_strat_m[[2]], reg_strat_m[[3]],
+          se = list(reg_strat_se_m[[1]], reg_strat_se_m[[2]],
+                    reg_strat_se_m[[3]]),
           type = "text", dep.var.labels = c("ARIMA","EWMA", "GARCH"), 
           covariate.labels = c("Market", "Variance Managed"), out = "table.htm",
           keep.stat = c("n", "rsq"))
@@ -533,12 +596,13 @@ for (i in 1:length(names[-1])) {
   for (j in 1: length(cost_vector)) {
     cost_m[j,i] <- 
       paste(
-        format(round(coefficients(
-          alternative_regression_function(cost_vector[j],i+1))[1],2), 
-          nsmall = 2), " (",
-        format(round(summary(
-          alternative_regression_function(cost_vector[j],i+1))$coefficient[1,4], 2),
-          nsmall = 2), ")", sep = "")
+        coefficients(alternative_regression_function(cost_vector[j],i+1))[1] %>%
+          round(2) %>% format(nsmall = 2),
+        " (",
+        coeftest(alternative_regression_function(cost_vector[j],i+1), 
+                 vcovHC(alternative_regression_function(cost_vector[j],i+1)), 
+                 type = "HC")[1,4] %>% round(2) %>% format(nsmall = 2),
+        ")", sep = "")
   }
 }
 
@@ -588,10 +652,10 @@ bd_times <- bd_times %>% mutate(weight_Var = weights_m$var_managed,
                                 weight_GARCH = weights_m$GARCH_var_managed)
 
 extreme_periods <- list()
-extreme_periods[[1]] <- filter(bd_times, mkt < 0 & weight_Var > 0)
-extreme_periods[[2]] <- filter(bd_times, mkt < -5 & weight_Var > 1)
-extreme_periods[[3]] <- filter(bd_times, var_managed < -10 & weight_Var > 1)
-extreme_periods[[4]] <- filter(bd_times, var_managed < -15 & weight_Var > 1)
+extreme_periods[[1]] <- bd_times %>% filter(mkt < 0 & weight_Var > 0)
+extreme_periods[[2]] <- bd_times %>% filter(mkt < -5 & weight_Var > 1)
+extreme_periods[[3]] <- bd_times %>% filter(var_managed < -10 & weight_Var > 1)
+extreme_periods[[4]] <- bd_times %>% filter(var_managed < -15 & weight_Var > 1)
 
 for (i in 1:length(extreme_periods)) {
   cor_m[1, i + 1] <- nrow(extreme_periods[[i]])
@@ -911,92 +975,98 @@ for (i in 1:(max_frequ - min_frequ + 1)) {
 }
 
 ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_stata() + 
   ggtitle("Alpha (MKT) Depending on Frequency") +
   xlab("Frequency in Days") + 
   ylab("Alpha (in %)") +
   ylim(0, 6) +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_stata() + 
   ggtitle("Alpha (MKT) Depending on Frequency") +
   xlab("Frequency in Days") + 
   ylab("Alpha (in %)") +
   ylim(0, 6) +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_stata() + 
   ggtitle("Appraisal Ratio (MKT) Depending on Frequency") +
   xlab("Frequency in Days") + 
   ylab("Appraisal Ratio") +
   ylim(0, 0.5) +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_stata() + 
   ggtitle("Appraisal Ratio (MKT) Depending on Frequency") +
   xlab("Frequency in Days") + 
   ylab("Appraisal Ratio") +
   ylim(0, 0.5) +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_stata() + 
   ggtitle("Cumulated Return over Whole Time Frame") +
   xlab("Frequency in Days") + 
   ylab("Cumulated Return") +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance")) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA")) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA")) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH")) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA", size = line_size)) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_stata() + 
   ggtitle("Cumulated Return over Whole Time Frame") +
   xlab("Frequency in Days") + 
   ylab("Cumulated Return") +
-  scale_color_manual(name = "Strategies", 
-                     values = c("Buy and Hold" = "black", 
-                                "Realized Variance" = "red", "ARIMA" = "blue", 
-                                "EWMA" = "green", "GARCH" = "yellow"))
+  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
+                                           "Realized Variance" = green_col, 
+                                           "ARIMA" = blue_col[1], 
+                                           "EWMA" = blue_col[2], 
+                                           "GARCH" = blue_col[3]))
 
 ################################################################################
 #******************************** Daily Level ********************************#
@@ -1128,6 +1198,7 @@ tot_ret_d[n_days,]
 
 # Compute Alpha and Ratios
 reg_mkt_d <- vector(mode = "list", length = length(names_d))
+reg_mkt_se_d <- vector(mode = "list", length = length(names_d))
 reg_FF3_d <- vector(mode = "list", length = length(names_d))
 b_d <- trading_year * (returns_d$`mkt-rf`)
 b1_d <- trading_year * (FF_daily$SMB[-1])
@@ -1142,6 +1213,11 @@ for (i in 1:length(names_d)) {
 reg_mkt_d[[1]] <- lm(a_d[,names_d[1]] ~ b_d)
 reg_mkt_d[[2]] <- lm(a_d[,names_d[2]] ~ b_d)
 reg_mkt_d[[3]] <- lm(a_d[,names_d[3]] ~ b_d)
+
+for (i in 1:length(names_d)) {
+  reg_mkt_se_d[[i]] <- reg_mkt_d[[i]] %>% 
+    vcovHC(type = "HC") %>% sqrt() %>% diag()
+}
 
 reg_FF3_d[[1]] <- lm(a_d[,names_d[1]] ~ b_d + b1_d + b2_d)
 reg_FF3_d[[2]] <- lm(a_d[,names_d[2]] ~ b_d + b1_d + b2_d)
@@ -1168,6 +1244,7 @@ reg_output_d <- format(round(reg_output_d, 2), nsmall = 2)
 
 # Output Results
 stargazer(reg_mkt_d[[1]], reg_mkt_d[[2]], reg_mkt_d[[3]],
+          se = list(reg_mkt_se_d[[1]], reg_mkt_se_d[[1]], reg_mkt_se_d[[1]]),
           type = "text", omit.stat = "all", 
           dep.var.labels = c("ARIMA","EWMA", "GARCH"), 
           covariate.labels = c("Market", "Alpha"),
