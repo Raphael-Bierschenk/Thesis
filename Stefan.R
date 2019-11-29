@@ -14,6 +14,8 @@ library(tseries)
 library(urca)
 library(sweep)
 library(stargazer)
+library(lmtest)
+library(sandwich)
 
 # ***** Import Data *****
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -190,8 +192,8 @@ omega = 0.00000125947711345891
 alpha = 0.0986757938205847
 beta = 0.890202868683846
 
-output_names <- c("alpha_mkt", "alpha_mkt_se", "alpha_ff3", "alpha_ff3_se", "beta_mkt",
-                  "R^2_mkt", "RMSE_mkt", "SR_new", "Appr_Ratio", "Performance")
+output_names <- c("alpha_mkt", "alpha_mkt_se", "alpha_mkt_pval", "alpha_ff3", "alpha_ff3_se", "alpha_ff3_pval", "beta_mkt",
+                  "beta_mkt_se", "beta_mkt_pval", "N", "R^2_mkt", "RMSE_mkt", "SR_new", "Appr_Ratio", "Performance")
 combined_output_flex <- data.frame(row.names = output_names)
 
 min_days_for_var = 5
@@ -244,7 +246,7 @@ for (i in intervals)
   summary(daily_vars$GARCH_perc_dev)
   
   # determine quantiles of variances
-  quantiles <- apply(daily_vars[,9:11], 2, quantile, probs = c(0.05, 0.95)) # c(1/44, 1-1/44)) # 
+  quantiles <- apply(daily_vars[,9:11], 2, quantile, probs = c(0.2, 0.8)) # c(1/44, 1-1/44)) 
   quantiles
   
   # use the new boundaries
@@ -591,16 +593,23 @@ for (i in intervals)
   factors[9:12] <- nrow(vars_flexible_v2_GARCH) / (nrow(FF_daily)-min_days_for_var+1) * trading_days
   
   
-  output_names <- c("alpha_mkt", "alpha_mkt_se", "alpha_ff3", "alpha_ff3_se", "beta_mkt",
-                    "R^2_mkt", "RMSE_mkt", "SR_new", "Appr_Ratio", "Performance")
+  output_names <- c("alpha_mkt", "alpha_mkt_se", "alpha_mkt_pval", "alpha_ff3", "alpha_ff3_se", "alpha_ff3_pval", "beta_mkt",
+                    "beta_mkt_se", "beta_mkt_pval", "N", "R^2_mkt", "RMSE_mkt", "SR_new", "Appr_Ratio", "Performance")
   for (i in 1:length(names_flex_cost)) {
-    reg_output_flex["alpha_mkt", i] <- get(paste("reg_flex_", names_flex_cost[i], sep = ""))$coefficients[1] * factors[i]
-    reg_output_flex["alpha_mkt_se", i] <- summary(get(paste("reg_flex_", names_flex_cost[i], sep = "")))$coefficients[1,2] * factors[i]
-    reg_output_flex["alpha_ff3", i] <- get(paste("reg_flex_ff3_", names_flex_cost[i], sep = ""))$coefficients[1] * factors[i]
-    reg_output_flex["alpha_ff3_se", i] <- summary(get(paste("reg_flex_ff3_", names_flex_cost[i], sep = "")))$coefficients[1,2] * factors[i]
-    reg_output_flex["beta_mkt", i] <- get(paste("reg_flex_", names_flex_cost[i], sep = ""))$coefficients[2]
-    reg_output_flex["R^2_mkt", i] <- summary(get(paste("reg_flex_", names_flex_cost[i], sep = "")))$r.squared
-    reg_output_flex["RMSE_mkt", i] <- sigma(get(paste("reg_flex_", names_flex_cost[i], sep = ""))) * factors[i]
+    model_mkt <- get(paste("reg_flex_", names_flex_cost[i], sep = ""))
+    model_ff3 <- get(paste("reg_flex_ff3_", names_flex_cost[i], sep = ""))
+    reg_output_flex["alpha_mkt", i] <- model_mkt$coefficients[1] * factors[i]
+    reg_output_flex["alpha_mkt_se", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[1,2] * factors[i]
+    reg_output_flex["alpha_mkt_pval", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[1,4]
+    reg_output_flex["alpha_ff3", i] <- model_ff3$coefficients[1] * factors[i]
+    reg_output_flex["alpha_ff3_se", i] <- coeftest(model_ff3, vcovHC(model_ff3, type = "HC"))[1,2] * factors[i]
+    reg_output_flex["alpha_ff3_pval", i] <- coeftest(model_ff3, vcovHC(model_ff3, type = "HC"))[1,4]
+    reg_output_flex["beta_mkt", i] <- model_mkt$coefficients[2]
+    reg_output_flex["beta_mkt_se", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[2,2] * factors[i]
+    reg_output_flex["beta_mkt_pval", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[2,4]
+    reg_output_flex["N", i] <- sum(summary(model_mkt)$df[1:2])
+    reg_output_flex["R^2_mkt", i] <- summary(model_mkt)$r.squared
+    reg_output_flex["RMSE_mkt", i] <- sigma(model_mkt) * factors[i]
     reg_output_flex["SR_new", i] <- factors[i] * 
       mean(get(paste("vars_flexible_v2_", names_flex[ceiling(i/4)], sep = ""))[[c("VMR_14bps", "VMR", "VMR_1bps", "VMR_10bps")[i%%4+1]]] - 
               get(paste("vars_flexible_v2_", names_flex[ceiling(i/4)], sep = ""))$RF) / (sqrt(factors[i]) *
@@ -618,28 +627,30 @@ for (i in intervals)
     colnames(combined_output_flex)[col] <- paste(colnames(reg_output_flex)[i], interval, sep = "_")
   }
 }
-combined_output_flex
-summary(reg_flex_EWMA)
+#combined_output_flex
+
 stargazer(reg_flex_EWMA, type = "text", out = "testt.htm",
           dep.var.labels = "Volatility-managed return",
           covariate.labels = "Market return",
           omit.stat = c("f", "adj.rsq"))
-# omit.stat = c("a", "b")
-?stargazer
-
 
 
 # alpha and apprasial ratio table (costs <-> interval)
-output_flex_alpha <- data.frame(matrix(ncol = length(intervals), nrow = length(names_flex_cost)))
-rownames(output_flex_alpha) <- names_flex_cost
-colnames(output_flex_alpha) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
-output_flex_appr_ratio <- data.frame(matrix(ncol = length(intervals), nrow = length(names_flex_cost)))
-rownames(output_flex_appr_ratio) <- names_flex_cost
-colnames(output_flex_appr_ratio) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
+names_cost <- c("Default", "1 bps", "10 bps", "14 bps")
+output_flex_alpha <- data.frame(matrix(ncol = length(intervals)+2, nrow = length(names_cost)))
+rownames(output_flex_alpha) <- names_cost
+colnames(output_flex_alpha) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years", "EWMA", "GARCH")
+output_flex_appr_ratio <- data.frame(matrix(ncol = length(intervals)+2, nrow = length(names_cost)))
+rownames(output_flex_appr_ratio) <- names_cost
+colnames(output_flex_appr_ratio) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years", "EWMA", "GARCH")
 for (i in 1:length(intervals)) {
-  for (j in 1:length(names_flex_cost)) {
+  for (j in 1:length(names_cost)) {
     output_flex_alpha[j,i] <- combined_output_flex[1,j+(i-1)*12]
-    output_flex_appr_ratio[j,i] <- combined_output_flex[6,j+(i-1)*12]
+    output_flex_appr_ratio[j,i] <- combined_output_flex[14,j+(i-1)*12]
+    output_flex_alpha[j,9] <- combined_output_flex[1,4+j]
+    output_flex_alpha[j,10] <- combined_output_flex[1,8+j]
+    output_flex_appr_ratio[j,9] <- combined_output_flex[14,4+j]
+    output_flex_appr_ratio[j,10] <- combined_output_flex[14,8+j]
   }
 }
 # Alphas
@@ -649,30 +660,15 @@ output_flex_appr_ratio
 
 
 # improve table (without costs)
-output_flex_var <- data.frame(matrix(ncol = length(intervals), nrow = length(output_names)))
-rownames(output_flex_var) <- output_names
-colnames(output_flex_var) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years")
-for (i in 1:length(intervals)) {
-  output_flex_var[,i] <- combined_output_flex[,i*12-11]
+output_flex <- data.frame(matrix(ncol = length(intervals)+2, nrow = length(output_names)))
+rownames(output_flex) <- output_names
+colnames(output_flex) <- c("1 week", "1/2 months", "1 months", "2 months", "3 months", "6 months", "1 year", "2 years", "EWMA", "GARCH")
+for (i in 1:(length(intervals)+2)) {
+  if(i <= 8) { output_flex[,i] <- combined_output_flex[,i*12-11] }
+  if(i == 9) { output_flex[,i] <- combined_output_flex[,5] }
+  if(i == 10) { output_flex[,i] <- combined_output_flex[,9] }
 }
-
-output_flex_ewma <- data.frame(matrix(ncol = 3, nrow = length(output_names)))
-rownames(output_flex_ewma) <- output_names
-colnames(output_flex_ewma) <- c("From start", "1 year", "2 years")
-output_flex_ewma[,1] <- combined_output_flex[,29]
-output_flex_ewma[,2] <- combined_output_flex[,77]
-output_flex_ewma[,3] <- combined_output_flex[,89]
-
-output_flex_garch <- data.frame(matrix(ncol = 3, nrow = length(output_names)))
-rownames(output_flex_garch) <- output_names
-colnames(output_flex_garch) <- c("From start", "1 year", "2 years")
-output_flex_garch[,1] <- combined_output_flex[,33]
-output_flex_garch[,2] <- combined_output_flex[,81]
-output_flex_garch[,3] <- combined_output_flex[,93]
-
-output_flex_var
-output_flex_ewma
-output_flex_garch
+output_flex
 
 
 # Graphs
@@ -684,7 +680,7 @@ daily_vars %>%
   geom_histogram(aes(log(1+GARCH_perc_dev_temp)), binwidth = 0.005) +
   geom_vline(xintercept = quantiles[1,3], color = "red", linetype = "dashed") +
   geom_vline(xintercept = quantiles[2,3], color = "red", linetype = "dashed") +
-  ggtitle("Distribution of percentage deviation of variances for GARCH, 2 years") + xlab("") + ylab("")
+  ggtitle("Distribution of percentage deviation of variances for GARCH") + xlab("") + ylab("")
 
 
 filter(FF_monthly, Mkt < -10)
