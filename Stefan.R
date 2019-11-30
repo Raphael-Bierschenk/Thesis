@@ -76,6 +76,7 @@ for (i in 2:nrow(FF_daily)) {
 
 # Generate output lists
 returns_flex_list <- list()
+factor_flex_list <- c(1:50)
 
 reg_models_flex_mkt <- list()
 reg_models_flex_mkt_1bps <- list()
@@ -159,7 +160,7 @@ strategy <- "Var_252_perc_dev"
 
 for (quantile in 1:length(quantiles))
 {
-  for (strategy in strategies)
+  for (strategy in c("Var_252_perc_dev"))
   {
     returns_flex <- data.frame(ymd("1900/01/01"), 0, 0, 0, 0, 0)
     colnames(returns_flex) <- c("Date", "Variance", "Mkt", "RF", "SMB", "HML")
@@ -277,19 +278,20 @@ for (quantile in 1:length(quantiles))
     reg_flex_ff3_14bps <- lm(VMR_14bps[-1] - RF[-1] ~ `Mkt-RF`[-1] + SMB[-1] + HML[-1], returns_flex)
     
     # Write return data frame and regression models to output lists
-    index <- match(strategy, strategies) + 10*(quantile - 1)
+    index <- quantile #match(strategy, strategies) + 10*(quantile - 1)
     
     returns_flex_list[[index]] <- returns_flex
+    factor_flex_list[index] <- factor
     
     reg_models_flex_mkt[[index]] <- reg_flex_mkt
     reg_models_flex_mkt_1bps[[index]] <- reg_flex_mkt_1bps
     reg_models_flex_mkt_10bps[[index]] <- reg_flex_mkt_10bps
-    reg_models_flex_mkt_14bps[[index]] <- reg_models_flex_mkt_14bps
+    reg_models_flex_mkt_14bps[[index]] <- reg_flex_mkt_14bps
     
-    reg_models_flex_ff3[[index]] <- reg_models_flex_ff3
-    reg_models_flex_ff3_1bps[[index]] <- reg_models_flex_ff3_1bps
-    reg_models_flex_ff3_10bps[[index]] <- reg_models_flex_ff3_10bps
-    reg_models_flex_ff3_14bps[[index]] <- reg_models_flex_ff3_14bps
+    reg_models_flex_ff3[[index]] <- reg_flex_ff3
+    reg_models_flex_ff3_1bps[[index]] <- reg_flex_ff3_1bps
+    reg_models_flex_ff3_10bps[[index]] <- reg_flex_ff3_10bps
+    reg_models_flex_ff3_14bps[[index]] <- reg_flex_ff3_14bps
   }
 }
 
@@ -309,34 +311,48 @@ ff3_alpha_stars <- function(model)
 }
 
 # Create table for one year strategy
-indices_one_year <- c(7, 17, 27, 37, 47)
-models_one_year <- list()
-se_one_year <- list()
-SR_one_year
-appr_ratio_one_year
+indices_one_year <- c(1,2,3,4,5)#c(7, 17, 27, 37, 47)
+returns_one_year <- list()
+factors_one_year <- c(1:5)
+models_mkt_one_year <- list()
+models_ff3_one_year <- list()
+robust_se_mkt_one_year <- list()
+robust_se_ff3_one_year <- list()
+SR_one_year <- c(1:5)
+appr_ratio_one_year <- c(1:5)
+alphas_ff3_one_year <- c(1:5)
+se_ff3_one_year <- c(1:5)
 
-for (index in indices_one_year) {
-  
+i=1
+for (i in 1:5) {
+  returns_one_year[[i]] <- returns_flex_list[[indices_one_year[i]]]
+  factors_one_year[[i]] <- factor_flex_list[[indices_one_year[i]]]
+  models_mkt_one_year[[i]] <- reg_models_flex_mkt[[indices_one_year[i]]]
+  models_ff3_one_year[[i]] <- reg_models_flex_ff3[[indices_one_year[i]]]
+  robust_se_mkt_one_year[[i]] <- sqrt(diag(vcovHC(models_mkt_one_year[[i]], type = "HC")))
+  robust_se_ff3_one_year[[i]] <- sqrt(diag(vcovHC(models_ff3_one_year[[i]], type = "HC")))
+  SR_one_year[i] <- round(mean(returns_one_year[[i]]$VMR - returns_one_year[[i]]$RF) /
+    sd(returns_one_year[[i]]$VMR - returns_one_year[[i]]$RF) * sqrt(factors_one_year[i]),2)
+  appr_ratio_one_year[i] <- round(models_mkt_one_year[[i]]$coefficients[1] /
+    stats::sigma(models_mkt_one_year[[i]]) * sqrt(factors_one_year[i]),2)
+  alphas_ff3_one_year[i] <- paste(round(models_ff3_one_year[[i]]$coefficients[1],2),
+                               ff3_alpha_stars(models_ff3_one_year[[i]]),sep = "")
+  se_ff3_one_year[i] <- paste("(",round(robust_se_ff3_one_year[[i]][1],2),")",sep = "")
 }
-robust_se_flex_mkt <- sqrt(diag(vcovHC(reg_flex_mkt, type = "HC")))
-robust_se_flex_ff3 <- sqrt(diag(vcovHC(reg_flex_ff3, type = "HC")))
-SR_new <- mean(returns_flex$VMR - returns_flex$RF) / sd(returns_flex$VMR - returns_flex$RF) * sqrt(factor)
-appr_ratio <- reg_flex_mkt$coefficients[1]/stats::sigma(reg_flex_mkt) * sqrt(factor)
 
-
-stargazer(reg_flex_mkt, 
-          se = list(robust_se_flex_mkt),
+stargazer(models_mkt_one_year, 
+          se = robust_se_mkt_one_year,
           type = "text", out = "table_one_year.htm",
-          dep.var.labels = "Volatility-managed return",
+          dep.var.labels = c("95.5% quantile", "90% quantile", "80% quantile",
+                             "70% quantile", "60% quantile"),
           covariate.labels = c("Mkt-RF", "Alpha"),
           omit.stat = c("f", "adj.rsq"), df = FALSE,
           table.layout = "-ld-t-s-a-n",
           digits = 2,
-          add.lines = list(c("Vol-Managed Sharpe", round(SR_new,3)),
-                           c("Appraisal Ratio", round(appr_ratio,3)),
-                           c("Alpha FF3", paste(round(reg_flex_ff3$coefficients[1],3),
-                                                ff3_alpha_stars(reg_flex_ff3),sep = "")),
-                           c("", paste("(",round(robust_se_flex_ff3[1],3),")",sep = ""))))
+          add.lines = list(c("Vol-Managed Sharpe", SR_one_year),
+                           c("Appraisal Ratio", appr_ratio_one_year),
+                           c("Alpha FF3", alphas_ff3_one_year),
+                           c("", se_ff3_one_year)))
 
 
 
