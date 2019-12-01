@@ -350,13 +350,13 @@ stargazer(models_mkt_one_year,
           column.separate = c(1,1,1,1,1),
           dep.var.labels = "<i>Volatility-Managed Return",
           dep.var.caption = "Quantile",
-          covariate.labels = c("Mkt-RF", "Alpha"),
+          covariate.labels = c("Mkt-RF", "Alpha (&#945;)"),
           omit.stat = c("f", "adj.rsq"), df = FALSE, no.space = FALSE,
           table.layout = "-dlc-t-s-a-n",
           digits = 2, digits.extra = 2,
           add.lines = list(c("Vol-Managed Sharpe", SR_one_year),
                            c("Appraisal Ratio", appr_ratio_one_year),
-                           c("Alpha FF3", alphas_ff3_one_year),
+                           c("Alpha (&#945;) FF3", alphas_ff3_one_year),
                            c("", se_ff3_one_year)))
 
 
