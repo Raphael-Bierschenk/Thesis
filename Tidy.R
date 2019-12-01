@@ -49,7 +49,7 @@ recession <- recession %>% rename(date = DATE, indicator = USREC)
 
 first_day <- 19260701
 first_month <- 192607
-last_day <- 20190830
+last_day <- 20190831
 last_month <- 201908
 
 FF_daily <- FF_daily %>% subset(subset = date <= last_day & date >= first_day)
@@ -271,8 +271,10 @@ stargazer(var_var_reg_m[[1]], var_var_reg_m[[2]],
                     ret_var_reg_se_m[[3]], ret_var_reg_se_m[[4]], 
                     retvar_var_reg_se_m[[1]], retvar_var_reg_se_m[[2]], 
                     retvar_var_reg_se_m[[3]], retvar_var_reg_se_m[[4]]),
-          type = "text", dep.var.labels = c("Variance Next Month","Return Next Month",
-                                            "Return per Unit of Variance"), 
+          type = "text", 
+          table.layout = "-d#-t-s",
+          dep.var.labels = c("Variance Next Month","Return Next Month",
+                             "Return per Unit of Variance"), 
           covariate.labels = c("Realized Variance", "ARIMA", "EWMA", "GARCH"),
           keep.stat = c("n", "rsq"),
           out = "table.htm", digits = 3, digits.extra = 0)
@@ -329,26 +331,16 @@ b2_m <- trading_months * (FF_monthly$HML[-1])
 
 a_m <- as.data.frame(matrix(nrow = n_months - 1, ncol = length(names)))
 colnames(a_m) <- names
+
 for (i in 1:length(names)) {
   a_m[,names[i]] <- trading_months * (returns_m[, names[i]] - returns_m$rf)
-}
-
-reg_mkt_m[[1]] <- lm(a_m[,names[1]] ~ b_m)
-reg_mkt_m[[2]] <- lm(a_m[,names[2]] ~ b_m)
-reg_mkt_m[[3]] <- lm(a_m[,names[3]] ~ b_m)
-reg_mkt_m[[4]] <- lm(a_m[,names[4]] ~ b_m)
-
-for (i in 1:length(names)) {
+  reg_mkt_m[[i]] <- lm(a_m[,names[i]] ~ b_m)
+  reg_FF3_m[[i]] <- lm(a_m[,names[i]] ~ b_m + b1_m + b2_m)
   reg_mkt_se_m[[i]] <- reg_mkt_m[[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
 }
 
-reg_FF3_m[[1]] <- lm(a_m[,names[1]] ~ b_m + b1_m + b2_m)
-reg_FF3_m[[2]] <- lm(a_m[,names[2]] ~ b_m + b1_m + b2_m)
-reg_FF3_m[[3]] <- lm(a_m[,names[3]] ~ b_m + b1_m + b2_m)
-reg_FF3_m[[4]] <- lm(a_m[,names[4]] ~ b_m + b1_m + b2_m)
-
 # Create Ouput Table
-output_names <- c("alpha_mkt", "beta_mkt", "R^2", "RMSE", "SR", "AR", "alpha_FF3",
+output_names <- c("alpha_mkt", "beta_mkt", "RMSE", "SR", "AR", "alpha_FF3",
                   "alpha_FF3_se")
 reg_output_m <- data.frame(matrix(ncol = length(names), nrow = length(output_names)))
 colnames(reg_output_m) <- names
@@ -357,7 +349,6 @@ rownames(reg_output_m) <- output_names
 for (i in 1:length(names)) {
   reg_output_m["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
   reg_output_m["beta_mkt", i] <- reg_mkt_m[[i]]$coefficients[2]
-  reg_output_m["R^2", i] <- summary(reg_mkt_m[[i]])$r.squared
   reg_output_m["RMSE", i] <- stats::sigma(reg_mkt_m[[i]])
   reg_output_m["SR", i] <- trading_months * 
     (mean(returns_m[,names[i]] - returns_m$rf)) / 
@@ -378,14 +369,12 @@ for (i in 1:length(names)) {
 stargazer(reg_mkt_m[[1]], reg_mkt_m[[2]], reg_mkt_m[[3]], reg_mkt_m[[4]],
           se = list(reg_mkt_se_m[[1]], reg_mkt_se_m[[2]],
                     reg_mkt_se_m[[3]], reg_mkt_se_m[[4]]),
-          type = "text", omit.stat = "all", 
-          dep.var.labels = names_clean, 
-          covariate.labels = c("Market", "Alpha"),
-          add.lines = list(c("R2", 
-                             sprintf("%.2f", as.numeric(reg_output_m["R^2",]))),
-                           c("RMSE", 
-                             sprintf("%.2f", as.numeric(reg_output_m["RMSE",]))),
-                           c("Sharpe Ratio", 
+          type = "text", 
+          keep.stat = c("n", "rsq", "ser"), df = FALSE, 
+          column.labels = names_clean,
+          table.layout = "-#c-t-s-a-",
+          covariate.labels = c("Mkt-RF", "Alpha (&#945;)"),
+          add.lines = list(c("Sharpe Ratio", 
                              sprintf("%.2f", as.numeric(reg_output_m["SR",]))),
                            c("Appr Ratio", 
                              sprintf("%.2f", as.numeric(reg_output_m["AR",]))),
@@ -589,7 +578,7 @@ breakeven_function_m <- function(cost, strategy) {
 }
 
 cost_m <- data.frame(matrix(nrow = length(names), ncol = 6))
-colnames(cost_m) <- c("alpha", "|Delta w|", "1bps", "10bps", "14bps", "Break-Even")
+colnames(cost_m) <- c("Alpha", "|Delta w|", "1bps", "10bps", "14bps", "Break-Even")
 rownames(cost_m) <- names_clean
 
 for (i in 1:length(names)) {
@@ -615,7 +604,7 @@ leverage_function_m <- function(leverage, strategy) {
 }
 
 leverage_m <- data.frame(matrix(nrow = length(names), ncol = 4))
-colnames(leverage_m) <- c("alpha", "100%", "50%", "0%")
+colnames(leverage_m) <- c("Alpha", "100%", "50%", "0%")
 rownames(leverage_m) <- names_clean
 
 for (i in 1:length(names)) {
@@ -650,32 +639,28 @@ reg_rec_se_m <- vector(mode = "list", length = length(names))
 rec_m <- recession$indicator[-1]
 b_rec_m <- trading_months * returns_m$`mkt-rf` * recession$indicator[-1]
 
-reg_rec_m[[1]] <- lm(a_m[,names[1]] ~ b_m + b_rec_m + rec_m)
-reg_rec_m[[2]] <- lm(a_m[,names[2]] ~ b_m + b_rec_m + rec_m)
-reg_rec_m[[3]] <- lm(a_m[,names[3]] ~ b_m + b_rec_m + rec_m)
-reg_rec_m[[4]] <- lm(a_m[,names[4]] ~ b_m + b_rec_m + rec_m)
-
 for (i in 1:length(names)) {
+  reg_rec_m[[i]] <- lm(a_m[[i]] ~ b_m + b_rec_m + rec_m)
   reg_rec_se_m[[i]] <- reg_rec_m[[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
 }
 
-stargazer(reg_rec_m[[1]], reg_rec_m[[2]], 
+stargazer(reg_rec_m[[1]], reg_rec_m[[2]],
           reg_rec_m[[3]], reg_rec_m[[4]],
-          se = list(reg_rec_se_m[[1]], reg_rec_se_m[[2]], 
+          se = list(reg_rec_se_m[[1]], reg_rec_se_m[[2]],
                     reg_rec_se_m[[3]], reg_rec_se_m[[4]]),
-          dep.var.labels = names_clean,
-          covariate.labels = c("Market", "Market * Recession", "Recession Constant"),
-            type = "text", out = "table.htm", keep.stat = c("n", "rsq"), digits = 2)
+          column.labels = names_clean,
+          table.layout = "-#c-t-s-a-",
+          covariate.labels = c("Mkt-RF", "Mkt-RF * Recession",
+                               "Recession", "Alpha (&#945;)"),
+            type = "text", out = "table.htm", 
+          keep.stat = c("n", "rsq"), digits = 2)
 
 # Determine Alpha of Alternative Strategies When Controlling For Moreira & Muir
 reg_strat_m <- vector(mode = "list", length = length(names) - 1)
 reg_strat_se_m <- vector(mode = "list", length = length(names) - 1)
 
-reg_strat_m[[1]] <- lm(a_m[,names[2]] ~ a_m[,names[1]] + b_m)
-reg_strat_m[[2]] <- lm(a_m[,names[3]] ~ a_m[,names[1]] + b_m)
-reg_strat_m[[3]] <- lm(a_m[,names[4]] ~ a_m[,names[1]] + b_m)
-
 for (i in 1:(length(names) - 1)) {
+  reg_strat_m[[i]] <- lm(a_m[,names[i+1]] ~ a_m[,names[i]] + b_m)
   reg_strat_se_m[[i]] <- reg_strat_m[[i]] %>% 
     vcovHC(type = "HC") %>% sqrt() %>% diag()
 }
@@ -684,8 +669,12 @@ for (i in 1:(length(names) - 1)) {
 stargazer(reg_strat_m[[1]], reg_strat_m[[2]], reg_strat_m[[3]],
           se = list(reg_strat_se_m[[1]], reg_strat_se_m[[2]],
                     reg_strat_se_m[[3]]),
-          type = "text", dep.var.labels = names_clean[-1], 
-          covariate.labels = c("Market", "Var"), out = "table.htm",
+          type = "text", 
+          column.labels = names_clean[-1],
+          table.layout = "-#c-t-s-a-",
+          dep.var.labels = names_clean[-1], 
+          covariate.labels = c("Mkt-RF", "Var", "Alpha (&#945;)"), 
+          out = "table.htm",
           keep.stat = c("n", "rsq"))
 
 # Repeat Regression Controlling For Cost
@@ -700,39 +689,58 @@ alternative_regression_function <- function(cost, strategy) {
 }
 
 cost_vector <- c(0.01, 0.1, 0.14, 0.3)
-strat_cost_m <- data.frame(matrix(nrow = length(cost_vector), 
+strat_cost_m <- data.frame(matrix(nrow = length(cost_vector) * 2, 
                                   ncol = length(names_clean[-1])))
 colnames(strat_cost_m) <- names_clean[-1]
-rownames(strat_cost_m)[1] <- paste(cost_vector[1] * 100, "bps")
-rownames(strat_cost_m)[-1] <- paste(cost_vector[-1] * 100, "bps")
 
-for (i in 1:length(names[-1])) {
-  for (j in 1: length(cost_vector)) {
-    strat_cost_m[j,i] <- 
-      paste(
-        coefficients(alternative_regression_function(cost_vector[j],i+1))[1] %>%
-          round(2) %>% format(nsmall = 2),
-        " (",
-        coeftest(alternative_regression_function(cost_vector[j],i+1), 
-                 vcovHC(alternative_regression_function(cost_vector[j],i+1)), 
-                 type = "HC")[1,4] %>% round(2) %>% format(nsmall = 2),
-        ")", sep = "")
+q <- 1
+for (i in 1:(length(cost_vector) * 2)) {
+  if (i %% 2 == 1) {
+    rownames(strat_cost_m)[i] <- paste(cost_vector[q] * 100, "bps")
+  }
+  else {
+    rownames(strat_cost_m)[i] <- paste("p", q, sep = "")
+    q <- q + 1
   }
 }
 
-stargazer(strat_cost_m, type = "text", summary = FALSE, 
+q <- 1
+for (i in 1:(length(cost_vector) * 2)) {
+  for (j in 1:(length(names[-1]))) {
+    reg <- alternative_regression_function(cost_vector[q],j+1)
+    if (i %% 2 == 1){
+      strat_cost_m[i,j] <- 
+        paste(coefficients(reg)[1] %>% round(2) %>% format(nsmall = 2),
+              ff3_alpha_stars(reg), sep = "")
+    }
+    else {
+      strat_cost_m[i,j] <- 
+        paste(" (",
+              coeftest(reg, vcovHC(reg, type = "HC"))[1,4] %>% 
+                round(2) %>% format(nsmall = 2),
+              ")", 
+              sep = "")
+    }
+  }  
+  if(i %% 2 == 0) q <- q + 1
+}
+
+stargazer(strat_cost_m, type = "text", summary = FALSE, no.space = FALSE,
           out = "table.htm", digits = 2)
+########################
+# If time: why do spaces appear
+#######################
 
 # Analysis of Bad Times With Correlation and RMSD
 
-cor_names_m <- c("No. of obs.", "Corr Mkt-Var ", "Corr Mkt-ARIMA ", 
+cor_names_m <- c("Observations", "Corr Mkt-Var ", "Corr Mkt-ARIMA ", 
                  "Corr Mkt-EWMA ", "Corr Mkt-GARCH ", "Corr Var-ARIMA ",
                  "Corr Var-EWMA ", "Corr Var-GARCH ")
-rmsd_names_m <- c("No. of obs.", "RMSD Mkt-Var ", "RMSD Mkt-ARIMA ",
+rmsd_names_m <- c("Observations", "RMSD Mkt-Var ", "RMSD Mkt-ARIMA ",
                   "RMSD Mkt-EWMA ", "RMSD Mkt-GARCH ", "RMSD Var-ARIMA ",
                   "RMSD Var-EWMA ", "RMSD Var-GARCH ")
-bad_times_names <- c("Whole Sample", "| Mkt < 0%, w > 1", "| Mkt < -5%, w > 1",
-                     "| Var < -10%, w > 1", "| Var < -15%, w > 1")
+bad_times_names <- c("Whole Sample", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
+                     "Var < -10% w > 1", "Var < -15% w > 1")
 
 cor_m <- data.frame(matrix(nrow = length(cor_names_m),
                            ncol = length(bad_times_names)))
@@ -795,8 +803,8 @@ stargazer(cor_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
 stargazer(rmsd_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
 
 # Analyze Bad Periods With Delta w
-bad_times_names2 <- c("w > 1", "| mkt < 0%, w > 1", "| mkt < -5%, w > 1",
-                                "| Var < -10%, w > 1", "| Var < -15%, w > 1")
+bad_times_names2 <- c("w > 1", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
+                                "Var < -10% w > 1", "Var < -15% w > 1")
 
 delta_m <- data.frame(matrix(nrow = length(names),
                              ncol = length(bad_times_names2)))
@@ -832,8 +840,17 @@ for (i in 1:length(names)) {
 }
 
 rel_delta_m <- rel_delta_m %>% round(digits = 2) %>% format(nsmall = 2)
-stargazer(delta_m, summary = FALSE, type = "text", out = "test.htm", digits = 2)
-stargazer(rel_delta_m, summary = FALSE, type = "text", out = "test.htm", digits = 2)
+stargazer(delta_m, summary = FALSE, type = "text", 
+          title = "Panel A: Average Absolute Weights",
+          out = "table.htm", digits = 2)
+stargazer(rel_delta_m, summary = FALSE, type = "text", 
+          title = "Panel B: Relative Deviation from Realized Variance Strategy",
+          out = "table.htm", digits = 2)
+
+################################################################################
+#******************* Replicate Over Different Time Periods *******************#
+
+
 
 ################################################################################
 #******************************** Custom Level ********************************#
@@ -1105,7 +1122,7 @@ ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Alpha (MKT) Depending on Frequency") +
+  ggtitle("Alpha (Mkt-RF) Depending on Holding Period (in %)") +
   xlab("") + ylab("") +
   ylim(0, 6) +
   scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
@@ -1113,33 +1130,6 @@ ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
                                            "ARIMA" = blue_col[1], 
                                            "EWMA" = blue_col[2], 
                                            "GARCH" = blue_col[3]))
-
-ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
-  theme_bw(base_family = "Times New Roman") +
-  theme(legend.position = "bottom", 
-        legend.box.background = element_rect(),
-        legend.box.margin = margin(1,1,1,1),
-        legend.text = element_text(size = 12),
-        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
-        axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  ggtitle("Alpha (MKT) Depending on Frequency") +
-  xlab("") + ylab("") +
-  ylim(0, 6) +
-  scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
 
 ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
@@ -1156,9 +1146,36 @@ ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Appraisal Ratio (MKT) Depending on Frequency") +
+  ggtitle("Appraisal Ratio (Mkt-RF) Depending on Holding Period") +
   xlab("") + ylab("") +
   ylim(0, 0.5) +
+  scale_color_manual(name = "", 
+                     values = c("Buy and Hold" = grey_col,
+                                "Realized Variance" = green_col,
+                                "ARIMA" = blue_col[1],
+                                "EWMA" = blue_col[2],
+                                "GARCH" = blue_col[3]),
+                     breaks = c("Buy and Hold", "Realized Variance",
+                                "ARIMA", "EWMA", "GARCH"))
+
+ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Alpha (Mkt-RF) Depending on Holding Period - 10 bps Trading Cost") +
+  xlab("") + ylab("") +
+  ylim(0, 6) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
@@ -1183,7 +1200,7 @@ ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Appraisal Ratio (MKT) Depending on Frequency") +
+  ggtitle("Appraisal Ratio (Mkt-RF) Depending on Holding Period - 10 bps Trading Cost") +
   xlab("") + ylab("") +
   ylim(0, 0.5) +
   scale_color_manual(name = "", 
@@ -1210,7 +1227,7 @@ ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Cumulated Return over Whole Time Frame") +
+  ggtitle("Cumulated Return Depending on Holding Period (in $)") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
@@ -1224,7 +1241,7 @@ ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
 ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA", size = line_size)) +
+  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1236,7 +1253,7 @@ ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Cumulated Return over Whole Time Frame") +
+  ggtitle("Cumulated Return Depending on Holding Period - 10 bps Trading Cost") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
@@ -1387,19 +1404,10 @@ a_d <- as.data.frame(matrix(nrow = n_days - 1, ncol = length(names_d)))
 colnames(a_d) <- names_d
 for (i in 1:length(names_d)) {
   a_d[,names_d[i]] <- trading_year * (returns_d[, names_d[i]] - returns_d$rf)
-}
-
-reg_mkt_d[[1]] <- lm(a_d[,names_d[1]] ~ b_d)
-reg_mkt_d[[2]] <- lm(a_d[,names_d[2]] ~ b_d)
-reg_mkt_d[[3]] <- lm(a_d[,names_d[3]] ~ b_d)
-
-for (i in 1:length(names_d)) {
+  reg_mkt_d[[i]] <- lm(a_d[,names_d[i]] ~ b_d)
   reg_mkt_se_d[[i]] <- reg_mkt_d[[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
+  reg_FF3_d[[i]] <- lm(a_d[,names_d[i]] ~ b_d + b1_d + b2_d)
 }
-
-reg_FF3_d[[1]] <- lm(a_d[,names_d[1]] ~ b_d + b1_d + b2_d)
-reg_FF3_d[[2]] <- lm(a_d[,names_d[2]] ~ b_d + b1_d + b2_d)
-reg_FF3_d[[3]] <- lm(a_d[,names_d[3]] ~ b_d + b1_d + b2_d)
 
 reg_output_d <- data.frame(matrix(ncol = length(names_d), 
                                   nrow = length(output_names),
@@ -1429,14 +1437,13 @@ for (i in 1:(length(names)-1)) {
 
 stargazer(reg_mkt_d[[1]], reg_mkt_d[[2]], reg_mkt_d[[3]],
           se = list(reg_mkt_se_m[[1]], reg_mkt_se_m[[2]], reg_mkt_se_m[[3]]),
-          type = "text", omit.stat = "all", 
-          dep.var.labels = names_clean[-1], 
+          type = "text", 
+          keep.stat = c("n", "rsq", "ser"), 
+          df = FALSE, 
+          column.labels = names_clean[-1],
+          table.layout = "-#c-t-s-a-",
           covariate.labels = c("Market", "Alpha"),
-          add.lines = list(c("R2", 
-                             sprintf("%.2f", as.numeric(reg_output_d["R^2",]))),
-                           c("RMSE", 
-                             sprintf("%.2f", as.numeric(reg_output_d["RMSE",]))),
-                           c("Sharpe Ratio", 
+          add.lines = list(c("Sharpe Ratio", 
                              sprintf("%.2f", as.numeric(reg_output_d["SR",]))),
                            c("Appr Ratio", 
                              sprintf("%.2f", as.numeric(reg_output_d["AR",]))),
@@ -1458,8 +1465,8 @@ breakeven_function_d <- function(cost, strategy) {
 }
 
 cost_d <- data.frame(matrix(nrow = length(names_d), ncol = 6))
-colnames(cost_d) <- c("alpha", "|Delta w|", "1bps", "10bps", "14bps", "Break Even")
-rownames(cost_d) <- names_d
+colnames(cost_d) <- c("alpha", "|Dw|", "1bps", "10bps", "14bps", "Break-Even")
+rownames(cost_d) <- names_clean[-1]
 
 for (i in 1:length(names_d)) {
   cost_d[i,1] <- breakeven_function_d(0, i)
@@ -1470,4 +1477,4 @@ for (i in 1:length(names_d)) {
   cost_d[i,6] <- uniroot(breakeven_function_d, strategy = i, lower = 0, upper = 100)$root
 }
 
-stargazer(cost_d, type = "text", summary = FALSE, out = "test.htm")
+stargazer(cost_d,type = "text", summary = FALSE, out = "table.htm", digits = 2)
