@@ -173,23 +173,25 @@ for (i in 2:n_months) {
 var_m <- var_m %>% mutate(GARCH_var = GARCH_var * 10000, GARCH_vol = sqrt(GARCH_var))
 
 # Set Up Parameter for Following GGPlots
-blue_col <- brewer.pal(9, name = "Blues")[c(5,7,8)]
+black_col <- brewer.pal(9, name = "Greys")[4:8]
+blue_col <- brewer.pal(9, name = "Blues")[c(5,7,8)] 
 green_col <- brewer.pal(9, name = "Greens")[5]
 grey_col <- brewer.pal(9, name = "Greys")[5]
+
 line_size <- 0.7
 loadfonts(device = "win")
 windowsFonts(Times = windowsFont("TT Times New Roman"))
 
 # Plot Variance Estimates by 4 Measures
 ggplot(var_m, aes(x = date)) +
-  geom_line(aes(y = vol * sqrt(trading_months), color = "Realized Variance"),
-            size = line_size) +
-  geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA"),
-            size = line_size) +
-  geom_line(aes(y = EWMA_vol * sqrt(trading_months), color = "EWMA"),
-            size = line_size) +
-  geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH"),
-            size = line_size) +
+  geom_line(aes(y = vol * sqrt(trading_months), color = "Realized Variance",
+                linetype = "Realized Variance"), size = line_size) +
+  geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA",
+                linetype = "ARIMA"), size = line_size) +
+  geom_line(aes(y = EWMA_vol * sqrt(trading_months), color = "EWMA",
+                linetype = "EWMA"), size = line_size) +
+  geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH",
+                linetype = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
         legend.box.background = element_rect(),
@@ -203,11 +205,19 @@ ggplot(var_m, aes(x = date)) +
   ggtitle("Annualized Volatility") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                     values = c("Buy and Hold" = black_col[5],
+                                "Realized Variance" = black_col[4],
+                                "ARIMA" = black_col[3],
+                                "EWMA" = black_col[2],
+                                "GARCH" = black_col[1]),
+                     breaks = c("Buy and Hold", "Realized Variance",
+                                "ARIMA", "EWMA", "GARCH")) +
+  scale_linetype_manual(name = "", 
+                     values = c("Buy and Hold" = "solid",
+                                "Realized Variance" = "dotted",
+                                "ARIMA" = "dotdash",
+                                "EWMA" = "twodash",
+                                "GARCH" = "longdash"),
                      breaks = c("Buy and Hold", "Realized Variance",
                                 "ARIMA", "EWMA", "GARCH"))
 
@@ -244,16 +254,15 @@ for (i in 1:length(names)) {
 }
 
 # Set Up Function to Calculate Significance Stars
-ff3_alpha_stars <- function(model)
-{
+ff3_alpha_stars <- function(model) {
   p_val <- coeftest(model, vcovHC(model, type = "HC"))[1,4]
   stars <- ""
   if (p_val < 0.01) {
-    stars <- "***"
+    stars <- "<sup>***</sup>"
   } else if (p_val < 0.05) {
-    stars <- "**"
+    stars <- "<sup>**</sup>"
   } else if (p_val < 0.1) {
-    stars <- "*"
+    stars <- "<sup>*</sup>"
   }
   return (stars)
 }
@@ -272,7 +281,7 @@ stargazer(var_var_reg_m[[1]], var_var_reg_m[[2]],
                     retvar_var_reg_se_m[[1]], retvar_var_reg_se_m[[2]], 
                     retvar_var_reg_se_m[[3]], retvar_var_reg_se_m[[4]]),
           type = "text", 
-          table.layout = "-d#-t-s",
+          table.layout = "-d#-t-s-",
           dep.var.labels = c("Variance Next Month","Return Next Month",
                              "Return per Unit of Variance"), 
           covariate.labels = c("Realized Variance", "ARIMA", "EWMA", "GARCH"),
@@ -356,8 +365,8 @@ for (i in 1:length(names)) {
   reg_output_m["AR", i] <- sqrt(trading_months) * 
     reg_output_m["alpha_mkt", i] / reg_output_m["RMSE", i]
   reg_output_m["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
-  reg_output_m["alpha_FF3_se", i] <- coeftest(reg_FF3_m[[1]], 
-                                              vcovHC(reg_FF3_m[[1]], 
+  reg_output_m["alpha_FF3_se", i] <- coeftest(reg_FF3_m[[i]], 
+                                              vcovHC(reg_FF3_m[[i]], 
                                                      type = "HC"))[1,2]
 }
 
@@ -403,11 +412,16 @@ for (i in 2:n_months) {
 }
 
 ggplot(cum_ret_m, aes(x = date)) +
-  geom_line(aes(y=mkt, color = "Buy and Hold"),size = line_size) +
-  geom_line(aes(y=var_managed, color = "Realized Variance"), size = line_size) +
-  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, color = "EWMA"), size = line_size) +
-  geom_line(aes(y=GARCH_var_managed, color = "GARCH"), size = line_size) +
+  geom_line(aes(y=mkt, color = "Buy and Hold",
+                linetype = "Buy and Hold"), size = line_size) +
+  geom_line(aes(y=var_managed, color = "Realized Variance",
+                linetype = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA",
+                linetype = "ARIMA"), size = line_size) +
+  geom_line(aes(y=EWMA_var_managed, color = "EWMA",
+                linetype = "EWMA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, color = "GARCH",
+                linetype = "GARCH"), size = line_size) +
   scale_y_continuous(trans = "log10",
                      breaks = trans_breaks('log10', function(x) 10^x),
                      minor_breaks = c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,
@@ -427,18 +441,25 @@ ggplot(cum_ret_m, aes(x = date)) +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11),
-        panel.grid.major = element_blank()) +
+        axis.text.y = element_text(size = 11)) +
   ggtitle("Cumulative Performance") + 
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                     values = c("Buy and Hold" = black_col[5],
+                                "Realized Variance" = black_col[4],
+                                "ARIMA" = black_col[3],
+                                "EWMA" = black_col[2],
+                                "GARCH" = black_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "EWMA", "GARCH")) +
+  scale_linetype_manual(name = "", 
+                        values = c("Buy and Hold" = "solid",
+                                   "Realized Variance" = "dotted",
+                                   "ARIMA" = "dotdash",
+                                   "EWMA" = "twodash",
+                                   "GARCH" = "longdash"),
+                        breaks = c("Buy and Hold", "Realized Variance",
+                                   "ARIMA", "EWMA", "GARCH"))
 
 # Calculate and Plot Rolling Average Returns
 returns_rolling_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
@@ -478,8 +499,8 @@ ggplot(returns_rolling_m, aes(x=date)) +
                                            "GARCH" = blue_col[1]))
 
 # Analyze Distribution of Returns
-stat_ret_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
-                    "Q3", "Max")
+stat_ret_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "P25", "P50",
+                    "P75", "Max")
 stat_ret_m <- data.frame(matrix(ncol = length(names), 
                                 nrow = length(stat_ret_names),
                                 dimnames = list(stat_ret_names, names_clean)))
@@ -617,8 +638,8 @@ for (i in 1:length(names)) {
 stargazer(leverage_m, type = "text", summary = FALSE, out = "table.htm", digits = 2)
 
 # Analyze Distribution of Weights
-stat_weight_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "Q1", "Median",
-                       "Q3", "90%", "99%", "Max")
+stat_weight_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "P25", "P50",
+                       "P75", "P90", "P99", "Max")
 stat_weight_m <- data.frame(matrix(ncol = length(names),
                                    nrow = length(stat_weight_names),
                                    dimnames = list(stat_weight_names, names_clean)))
@@ -710,8 +731,7 @@ for (i in 1:(length(cost_vector) * 2)) {
     reg <- alternative_regression_function(cost_vector[q],j+1)
     if (i %% 2 == 1){
       strat_cost_m[i,j] <- 
-        paste(coefficients(reg)[1] %>% round(2) %>% format(nsmall = 2),
-              ff3_alpha_stars(reg), sep = "")
+        coefficients(reg)[1] %>% round(2) %>% format(nsmall = 2)
     }
     else {
       strat_cost_m[i,j] <- 
@@ -725,20 +745,14 @@ for (i in 1:(length(cost_vector) * 2)) {
   if(i %% 2 == 0) q <- q + 1
 }
 
-stargazer(strat_cost_m, type = "text", summary = FALSE, no.space = FALSE,
-          out = "table.htm", digits = 2)
-########################
-# If time: why do spaces appear
-#######################
+stargazer(strat_cost_m, type = "text", summary = FALSE, out = "table.htm")
 
 # Analysis of Bad Times With Correlation and RMSD
 
-cor_names_m <- c("Observations", "Corr Mkt-Var ", "Corr Mkt-ARIMA ", 
-                 "Corr Mkt-EWMA ", "Corr Mkt-GARCH ", "Corr Var-ARIMA ",
-                 "Corr Var-EWMA ", "Corr Var-GARCH ")
-rmsd_names_m <- c("Observations", "RMSD Mkt-Var ", "RMSD Mkt-ARIMA ",
-                  "RMSD Mkt-EWMA ", "RMSD Mkt-GARCH ", "RMSD Var-ARIMA ",
-                  "RMSD Var-EWMA ", "RMSD Var-GARCH ")
+cor_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-EWMA ", 
+                 "Mkt-GARCH ", "Var-ARIMA ", "Var-EWMA ", "Var-GARCH ")
+rmsd_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-EWMA ", 
+                  "Mkt-GARCH ", "Var-ARIMA ", "Var-EWMA ", "Var-GARCH ")
 bad_times_names <- c("Whole Sample", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
                      "Var < -10% w > 1", "Var < -15% w > 1")
 
@@ -850,7 +864,203 @@ stargazer(rel_delta_m, summary = FALSE, type = "text",
 ################################################################################
 #******************* Replicate Over Different Time Periods *******************#
 
+sub_dates <- data.frame(matrix(nrow = 3, ncol = 2, 
+                               dimnames = list(c("Period 1", "Period 2", "Period 3"),
+                                               c("First Day", "Last Day"))))
+output_names1 <- c("alpha_mkt", "beta_mkt", "RMSE", "SD", "SR", "AR", "alpha_FF3",
+                  "alpha_FF3_se")
 
+sub_dates["Period 1",] <- c(first_day, 19570730)
+sub_dates["Period 2",] <- c(19570801, 19880730)
+sub_dates["Period 3",] <- c(19880801, last_day)
+
+reg_mkt_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+reg_mkt_se_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+reg_FF3_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+
+a_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+b_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+b1_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+b2_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+
+reg_output_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+alpha_stars_m_sub <- vector(mode = "list", length = as.numeric(count(sub_dates)))
+
+for (period in 1:as.numeric(count(sub_dates))){
+  first_day_sub <- ymd(sub_dates[period, 1])
+  last_day_sub <- ymd(sub_dates[period, 2])
+  
+  FF_monthly_sub <- FF_monthly %>%
+    subset(subset = date < last_day_sub & date >= first_day_sub)
+  
+  var_m_sub <- var_m %>%
+    subset(subset = date < last_day_sub & date >= first_day_sub)
+  
+  returns_m_sub <- returns_m %>% 
+    subset(subset = date < last_day_sub & date > first_day_sub)
+  
+  weights_m_sub <- weights_m %>% 
+    subset(subset = date < last_day_sub & date > first_day_sub)
+  
+  n_months_sub <- var_m_sub %>% count() %>% as.numeric()
+  
+  c_m_sub <- data.frame(matrix(ncol = length(names)))
+  colnames(c_m_sub) <- names
+  
+  a_qe_m_sub <- c(1:length(names))
+  b_qe_m_sub <- c(1:length(names))
+  c_qe_m_sub <- c(1:length(names))
+  
+  for (i in 1:length(names)) {
+    a_qe_m_sub[i] <- var(FF_monthly_sub$`mkt-rf`[-1] / 
+                           var_m_sub[-n_months_sub,var_names[i]])
+    b_qe_m_sub[i] <- 2 * cov(FF_monthly_sub$`mkt-rf`[-1] / 
+                               var_m_sub[-n_months_sub,var_names[i]],
+                             FF_monthly_sub$rf[-1])
+    c_qe_m_sub[i] <- var(FF_monthly_sub$rf[-1]) - var(FF_monthly_sub$mkt[-1])
+    
+    c_m_sub[i] <- 1 / (2 * a_qe_m_sub[i]) * 
+      (-b_qe_m_sub[i] + sqrt((b_qe_m_sub[i])^2 - 4 * a_qe_m_sub[i] * c_qe_m_sub[i]))
+  }
+  
+  for (i in 1:length(names)) {
+    weights_m_sub[,names[i]] <- 
+      as.numeric(c_m_sub[i]) / var_m_sub[-n_months_sub,var_names[i]]
+    returns_m_sub[,names[i]] <- 
+      weights_m_sub[,names[i]] * returns_m_sub$`mkt-rf` + returns_m_sub$rf
+  }
+  
+  # Run Regressions to Determine Alpha, Beta, etc.
+  reg_mkt_m_sub[[period]] <- vector(mode = "list", length = length(names))
+  reg_mkt_se_m_sub[[period]] <- vector(mode = "list", length = length(names))
+  reg_FF3_m_sub[[period]] <- vector(mode = "list", length = length(names))
+  
+  b_m_sub[[period]] <- trading_months * FF_monthly_sub$`mkt-rf`[-1]
+  b1_m_sub[[period]] <- trading_months * FF_monthly_sub$SMB[-1]
+  b2_m_sub[[period]] <- trading_months * FF_monthly_sub$HML[-1]
+  
+  a_m_sub[[period]] <- as.data.frame(matrix(nrow = n_months_sub - 1, ncol = length(names)))
+  colnames(a_m_sub[[period]]) <- names
+  
+  reg_output_m_sub[[period]] <- data.frame(matrix(ncol = length(names),
+                                                  nrow = length(output_names1),
+                                                  dimnames = list(output_names1,
+                                                                  names)))
+  
+  for (i in 1:length(names)) {
+    a_m_sub[[period]][,names[i]] <- 
+      trading_months * (returns_m_sub[, names[i]] - returns_m_sub$rf)
+    
+    reg_output_m_sub[[period]]["SD", i] <- 
+      sqrt(trading_months) * sd(returns_m_sub[,names[i]])
+    reg_output_m_sub[[period]]["SR", i] <- trading_months * 
+      (mean(returns_m_sub[,names[i]] - returns_m_sub$rf)) / 
+      (sqrt(trading_months) * sd(returns_m_sub[,names[i]] - returns_m_sub$rf))
+  }
+}  
+
+for (i in 1:length(names)){
+  reg_mkt_m_sub[[1]][[i]] <- lm(a_m_sub[[1]][,names[i]] ~ b_m_sub[[1]])
+  reg_mkt_m_sub[[2]][[i]] <- lm(a_m_sub[[2]][,names[i]] ~ b_m_sub[[2]])
+  reg_mkt_m_sub[[3]][[i]] <- lm(a_m_sub[[3]][,names[i]] ~ b_m_sub[[3]])
+  
+  names(reg_mkt_m_sub[[1]][[i]]$coefficients) <- 
+    c(names(reg_mkt_m_sub[[1]][[i]]$coefficients[1]), "Mkt-RF")
+  names(reg_mkt_m_sub[[2]][[i]]$coefficients) <- 
+    c(names(reg_mkt_m_sub[[2]][[i]]$coefficients[1]), "Mkt-RF")
+  names(reg_mkt_m_sub[[3]][[i]]$coefficients) <- 
+    c(names(reg_mkt_m_sub[[3]][[i]]$coefficients[1]), "Mkt-RF")
+  
+  reg_FF3_m_sub[[1]][[i]] <- 
+    lm(a_m_sub[[1]][,names[i]] ~ b_m_sub[[1]] + b1_m_sub[[1]] + b2_m_sub[[1]])
+  reg_FF3_m_sub[[2]][[i]] <- 
+    lm(a_m_sub[[2]][,names[i]] ~ b_m_sub[[2]] + b1_m_sub[[2]] + b2_m_sub[[2]])
+  reg_FF3_m_sub[[3]][[i]] <- 
+    lm(a_m_sub[[3]][,names[i]] ~ b_m_sub[[3]] + b1_m_sub[[3]] + b2_m_sub[[3]])
+  
+  reg_mkt_se_m_sub[[1]][[i]] <- 
+    reg_mkt_m_sub[[1]][[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
+  reg_mkt_se_m_sub[[2]][[i]] <- 
+    reg_mkt_m_sub[[2]][[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
+  reg_mkt_se_m_sub[[3]][[i]] <- 
+    reg_mkt_m_sub[[3]][[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
+}
+
+for (period in 1:as.numeric(count(sub_dates))) {
+  for (i in 1:length(names)) {
+    reg_output_m_sub[[period]]["alpha_mkt", i] <- 
+      reg_mkt_m_sub[[period]][[i]]$coefficients[1]
+    reg_output_m_sub[[period]]["beta_mkt", i] <- 
+      reg_mkt_m_sub[[period]][[i]]$coefficients[2]
+    reg_output_m_sub[[period]]["RMSE", i] <- 
+      stats::sigma(reg_mkt_m_sub[[period]][[i]])
+    reg_output_m_sub[[period]]["AR", i] <- sqrt(trading_months) * 
+      reg_output_m_sub[[period]]["alpha_mkt", i] / 
+      reg_output_m_sub[[period]]["RMSE", i]
+    reg_output_m_sub[[period]]["alpha_FF3", i] <- 
+      reg_FF3_m_sub[[period]][[i]]$coefficients[1]
+    reg_output_m_sub[[period]]["alpha_FF3_se", i] <- 
+      coeftest(reg_FF3_m_sub[[period]][[i]], 
+               vcovHC(reg_FF3_m_sub[[period]][[i]], 
+                      type = "HC"))[1,2]
+    alpha_stars_m_sub[[period]][i] <- ff3_alpha_stars(reg_FF3_m_sub[[period]][[i]])
+  }
+}
+
+stargazer(reg_mkt_m_sub[[1]][[1]], reg_mkt_m_sub[[1]][[2]],
+          reg_mkt_m_sub[[1]][[3]], reg_mkt_m_sub[[1]][[4]],
+          reg_mkt_m_sub[[2]][[1]], reg_mkt_m_sub[[2]][[2]],
+          reg_mkt_m_sub[[2]][[3]], reg_mkt_m_sub[[2]][[4]],
+          reg_mkt_m_sub[[3]][[1]], reg_mkt_m_sub[[3]][[2]],
+          reg_mkt_m_sub[[3]][[3]], reg_mkt_m_sub[[3]][[4]],
+          se = list(reg_mkt_se_m_sub[[1]][[1]], reg_mkt_se_m_sub[[1]][[2]],
+                    reg_mkt_se_m_sub[[1]][[3]], reg_mkt_se_m_sub[[1]][[4]],
+                    reg_mkt_se_m_sub[[2]][[1]], reg_mkt_se_m_sub[[2]][[2]],
+                    reg_mkt_se_m_sub[[2]][[3]], reg_mkt_se_m_sub[[2]][[4]],
+                    reg_mkt_se_m_sub[[3]][[1]], reg_mkt_se_m_sub[[3]][[2]],
+                    reg_mkt_se_m_sub[[3]][[3]], reg_mkt_se_m_sub[[3]][[4]]),
+          type = "text", 
+          keep.stat = c("n", "rsq", "ser"), df = FALSE, 
+          dep.var.labels = c("1926 - 1957", "1957 - 1988", "1988 - 2019"),
+          column.labels = rep(names_clean, as.numeric(count(sub_dates))),
+          table.layout = "-d#c-t-s-a-",
+          covariate.labels = c("Mkt-RF", "Alpha (&#945;)"),
+          add.lines = list(c("Standard Deviation", 
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[1]]["SD",])),
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[2]]["SD",])),
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[3]]["SD",]))),
+                           c("Sharpe Ratio", 
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[1]]["SR",])),
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[2]]["SR",])),
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[3]]["SR",]))),
+                           c("Appr Ratio", 
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[1]]["AR",])),
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[2]]["AR",])),
+                             sprintf("%.2f", as.numeric(reg_output_m_sub[[3]]["AR",]))),
+                           c("Alpha FF3", 
+                             paste(sprintf("%.2f", 
+                                           as.numeric(reg_output_m_sub[[1]]["alpha_FF3",])),
+                                   alpha_stars_m_sub[[1]], sep = ""),
+                             paste(sprintf("%.2f", 
+                                           as.numeric(reg_output_m_sub[[2]]["alpha_FF3",])),
+                                   alpha_stars_m_sub[[2]], sep = ""),
+                             paste(sprintf("%.2f", 
+                                           as.numeric(reg_output_m_sub[[3]]["alpha_FF3",])),
+                                   alpha_stars_m_sub[[3]], sep = "")),
+                           c("", 
+                             paste("(", 
+                                   sprintf("%.2f", 
+                                           as.numeric(reg_output_m_sub[[1]]["alpha_FF3_se",])),
+                                   ")", sep = ""),
+                             paste("(", 
+                                   sprintf("%.2f", 
+                                           as.numeric(reg_output_m_sub[[2]]["alpha_FF3_se",])),
+                                   ")", sep = ""),
+                             paste("(", 
+                                   sprintf("%.2f", 
+                                           as.numeric(reg_output_m_sub[[3]]["alpha_FF3_se",])),
+                                   ")", sep = ""))),
+          digits = 2, out = "table.htm")
 
 ################################################################################
 #******************************** Custom Level ********************************#
@@ -1424,8 +1634,8 @@ for (i in 1:length(names_d)) {
   reg_output_d["AR", i] <- sqrt(trading_year) * 
     reg_output_d["alpha_mkt", i] / reg_output_d["RMSE", i]
   reg_output_d["alpha_FF3", i] <- reg_FF3_d[[i]]$coefficients[1]
-  reg_output_d["alpha_FF3_se", i] <- coeftest(reg_FF3_d[[1]], 
-                                              vcovHC(reg_FF3_d[[1]], 
+  reg_output_d["alpha_FF3_se", i] <- coeftest(reg_FF3_d[[i]], 
+                                              vcovHC(reg_FF3_d[[i]], 
                                                      type = "HC"))[1,2]
 }
 
