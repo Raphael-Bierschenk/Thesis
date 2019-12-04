@@ -788,6 +788,81 @@ ggplot() +
                                 "EWMA", "GARCH"))
 
 
+# Figure 6: Example for when better to exclude last returns: April 1927
+# Monthly variance of the whole month
+var(FF_daily$Mkt[225:249])*24/25*25
+# Monthly variance excluding the last six days
+var(FF_daily$Mkt[225:243])*24/25*25
+# Return of May 1927: 5.74%
+ggplot() +
+  geom_line(aes(y=as.numeric(FF_daily$Mkt[225:249]), x=as.Date(FF_daily$Date[225:249]),
+                colour="Mkt"), size = line_size) +
+  scale_x_date() +
+  scale_y_continuous(limits = c(-2,2), breaks = c(-2:2), minor_breaks = NULL) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11)) +
+  ggtitle("Market returns in April 1927") + xlab("") + ylab("") +
+  scale_color_manual(name = "", 
+                     values = c("Mkt" = grey_col[9]),
+                     breaks = c("Mkt"))
+
+# Figure 7: Example for when better to exclude first returns: February 1940
+# Monthly variance of the whole month
+var(FF_daily$Mkt[4052:4074])*24/25*25
+# Monthly variance excluding the first seven days
+var(FF_daily$Mkt[4059:4074])*24/25*25
+ggplot() +
+  geom_line(aes(y=as.numeric(FF_daily$Mkt[4052:4074]), x=as.Date(FF_daily$Date[4052:4074]),
+                colour="Mkt"), size = line_size) +
+  scale_x_date() +
+  scale_y_continuous(limits = c(-2,2), breaks = c(-2:2), minor_breaks = NULL) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11)) +
+  ggtitle("Market returns in February 1940") + xlab("") + ylab("") +
+  scale_color_manual(name = "", 
+                     values = c("Mkt" = grey_col[9]),
+                     breaks = c("Mkt"))
+
+# Figure 8: Example for when variance keeps the same for period longer than a month
+trailing_vars <- c(1:153)
+for (i in trailing_vars) {
+  trailing_vars[i] <- var(FF_daily$Mkt[(10351+i-1):(10351+21+i-1)])*21/22*22
+}
+ggplot() +
+  geom_line(aes(y=as.numeric(FF_daily$Mkt[10351:10525]), x=as.Date(FF_daily$Date[10351:10525]),
+                colour="Mkt"), size = line_size) +
+  geom_line(aes(y=as.numeric(trailing_vars)/8-4, x=as.Date(FF_daily$Date[10373:10525]), 
+                colour="22-day trailing Variance"), size = 0.8) +
+  scale_x_date() +
+  scale_y_continuous(limits = c(-4,4), breaks = c(-4:4), minor_breaks = NULL, name = "Return in %",
+                     sec.axis = sec_axis(~.*8+32, name = "Monthly Variance")) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11)) +
+  ggtitle("Market returns and their variance in 1963") + xlab("") + ylab("") +
+  scale_color_manual(name = "", 
+                     values = c("Mkt" = grey_col[6],
+                                "22-day trailing Variance" = grey_col[9]),
+                     breaks = c("Mkt", "22-day trailing Variance"))
+
+
 #********************************************************************************************************
 
 
