@@ -83,7 +83,7 @@ for (i in 2:nrow(FF_daily)) {
 #                    Strategies with flexible time periods                     #
 ################################################################################
 
-# try out daily arima
+trading_days <- 264
 
 # Generate output lists
 returns_flex_list <- list()
