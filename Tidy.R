@@ -36,6 +36,8 @@ library(rugarch)
 library(sandwich)
 library(lmtest)
 library(extrafont)
+library(RColorBrewer)
+library(cowplot)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -75,25 +77,26 @@ FF_monthly$u_sq <- log(1+FF_monthly$`mkt-rf` / 100)^2
 #******************************* Monthly Level *******************************#
 
 # Define Used Strategies
-names <- c("var_managed","ARIMA_var_managed", "EWMA_var_managed", "GARCH_var_managed")
-names_clean <- c("Var", "ARIMA", "EWMA", "GARCH")
+names <- c("var_managed","ARIMA_var_managed", "ESA_var_managed", "GARCH_var_managed")
+names_clean <- c("Var", "ARIMA", "ESA", "GARCH")
 
 # Calculate Monthly Variance and Volatility
 trading_days <- 22
 trading_months <- 12
-trading_year <- 252
+trading_year <- trading_days * trading_months
 
 var_m <- FF_daily %>%
   mutate(month = month(date), year = year(date)) %>%
   group_by(year, month) %>%
-  summarise(var = var(`mkt-rf`) * trading_days)
+  summarise(var = var(`mkt-rf`) * trading_days * 
+              (length(`mkt-rf`)-1) / length(`mkt-rf`))
 
 var_m <- var_m %>% 
   as.data.frame() %>% 
   mutate(date = FF_monthly$date, vol = sqrt(var)) %>% 
   select(date, var, vol)
 
-# Conduct Tests for Heteroskedasticity and Calculate ARIMA Variance 
+# Conduct Tests for Stationarity and Calculate ARIMA Variance 
 variance_ts_m <- xts(var_m$var, order.by = var_m$date)
 
 kpss.test(var_m$var)
@@ -106,15 +109,14 @@ pp.test(diff(var_m$var))
 Acf(diff(variance_ts_m), lag = 24, main = "Autocorrelation Function")
 Pacf(diff(variance_ts_m), lag = 24, main = "Partial Autocorrelation Function")
 
-ARIMA_model_m <- auto.arima(variance_ts_m,stepwise = FALSE, approximation = FALSE)
-jarque.test(as.vector(ARIMA_model_m$residuals))
+ARIMA_model_m <- auto.arima(variance_ts_m,stepwise = FALSE, approximation = FALSE,
+                            max.p = 10, max.q = 10, ic = "aic", test = "kpss")
 
 var_m$ARIMA_var <- c(fitted(ARIMA_model_m)[-1], forecast(ARIMA_model_m, h = 1)$mean)
 var_m <- var_m %>% mutate(ARIMA_vol = sqrt(ARIMA_var))
 
 # Optimize Lambda for EWMA Model
-EWMA_function_m <- function(lambda)
-{
+EWMA_function_m <- function(lambda) {
   EWMA_var <- c(1:n_months)
   EWMA_var[1] <- FF_monthly$u_sq[1]
   for(i in 2:n_months) {
@@ -127,19 +129,19 @@ EWMA_function_m <- function(lambda)
   return (sum(EWMA_likelihood))
 }
 
-GARCH_max_m <- optimize(EWMA_function_m, interval = c(0, 1), maximum = TRUE, 
+EWMA_max_m <- optimize(EWMA_function_m, interval = c(0, 1), maximum = TRUE, 
                        tol = 0.000000000000001)
-lambda_m <- GARCH_max_m$maximum
+lambda_m <- EWMA_max_m$maximum
 
-# Calculate EWMA Variance and Volatility
-var_m$EWMA_var <- c(1:n_months)
-var_m$EWMA_var[1] <- var_m$var[1]
+# Calculate ESA Variance and Volatility
+var_m$ESA_var <- c(1:n_months)
+var_m$ESA_var[1] <- var_m$var[1]
 
 for (i in 2:n_months) {
-  var_m$EWMA_var[i] <- lambda_m * var_m$EWMA_var[i - 1] + (1 - lambda_m) * var_m$var[i]
+  var_m$ESA_var[i] <- lambda_m * var_m$ESA_var[i - 1] + (1 - lambda_m) * var_m$var[i]
 }
 
-var_m <- var_m %>% mutate(EWMA_vol = sqrt(var_m$EWMA_var))
+var_m <- var_m %>% mutate(ESA_vol = sqrt(var_m$ESA_var))
 
 # Optimize GARCH Parameter
 GARCH_function_m <- function(alpha, beta) {
@@ -188,8 +190,8 @@ ggplot(var_m, aes(x = date)) +
                 linetype = "Realized Variance"), size = line_size) +
   geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA",
                 linetype = "ARIMA"), size = line_size) +
-  geom_line(aes(y = EWMA_vol * sqrt(trading_months), color = "EWMA",
-                linetype = "EWMA"), size = line_size) +
+  geom_line(aes(y = ESA_vol * sqrt(trading_months), color = "ESA",
+                linetype = "ESA"), size = line_size) +
   geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH",
                 linetype = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
@@ -208,21 +210,21 @@ ggplot(var_m, aes(x = date)) +
                      values = c("Buy and Hold" = black_col[5],
                                 "Realized Variance" = black_col[4],
                                 "ARIMA" = black_col[3],
-                                "EWMA" = black_col[2],
+                                "ESA" = black_col[2],
                                 "GARCH" = black_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH")) +
+                                "ARIMA", "ESA", "GARCH")) +
   scale_linetype_manual(name = "", 
                      values = c("Buy and Hold" = "solid",
                                 "Realized Variance" = "dotted",
                                 "ARIMA" = "dotdash",
-                                "EWMA" = "twodash",
+                                "ESA" = "twodash",
                                 "GARCH" = "longdash"),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 # Analyze Predictive Power of Variance Estimates with Regressions
-var_names <- c("var", "ARIMA_var", "EWMA_var", "GARCH_var")
+var_names <- c("var", "ARIMA_var", "ESA_var", "GARCH_var")
 var_var_reg_m <- vector(mode = "list", length = length(var_names))
 ret_var_reg_m <- vector(mode = "list", length = length(var_names))
 retvar_var_reg_m <- vector(mode = "list", length = length(var_names))
@@ -284,7 +286,7 @@ stargazer(var_var_reg_m[[1]], var_var_reg_m[[2]],
           table.layout = "-d#-t-s-",
           dep.var.labels = c("Variance Next Month","Return Next Month",
                              "Return per Unit of Variance"), 
-          covariate.labels = c("Realized Variance", "ARIMA", "EWMA", "GARCH"),
+          covariate.labels = c("Realized Variance", "ARIMA", "ESA", "GARCH"),
           keep.stat = c("n", "rsq"),
           out = "table.htm", digits = 3, digits.extra = 0)
 
@@ -296,6 +298,7 @@ a_qe_m <- c(1:length(names))
 b_qe_m <- c(1:length(names))
 c_qe_m <- c(1:length(names))
 
+# Usage of Population Variance, since the prefactor cancels out on aggregate
 for (i in 1:length(names)) {
   a_qe_m[i] <- var(FF_monthly$`mkt-rf`[-1] / var_m[-n_months,var_names[i]])
   b_qe_m[i] <- 2 * cov(FF_monthly$`mkt-rf`[-1] / var_m[-n_months,var_names[i]], 
@@ -358,10 +361,9 @@ rownames(reg_output_m) <- output_names
 for (i in 1:length(names)) {
   reg_output_m["alpha_mkt", i] <- reg_mkt_m[[i]]$coefficients[1]
   reg_output_m["beta_mkt", i] <- reg_mkt_m[[i]]$coefficients[2]
-  reg_output_m["RMSE", i] <- stats::sigma(reg_mkt_m[[i]])
-  reg_output_m["SR", i] <- trading_months * 
-    (mean(returns_m[,names[i]] - returns_m$rf)) / 
-    (sqrt(trading_months) * sd(returns_m[,names[i]] - returns_m$rf))
+  reg_output_m["RMSE", i] <- sqrt(mean(residuals(reg_mkt_m[[i]])^2))
+  reg_output_m["SR", i] <- sqrt(trading_months) * 
+    (mean(returns_m[,names[i]] - returns_m$rf)) / sd(returns_m[,names[i]])
   reg_output_m["AR", i] <- sqrt(trading_months) * 
     reg_output_m["alpha_mkt", i] / reg_output_m["RMSE", i]
   reg_output_m["alpha_FF3", i] <- reg_FF3_m[[i]]$coefficients[1]
@@ -411,6 +413,8 @@ for (i in 2:n_months) {
     } 
 }
 
+cum_ret_m[n_months,]
+
 ggplot(cum_ret_m, aes(x = date)) +
   geom_line(aes(y=mkt, color = "Buy and Hold",
                 linetype = "Buy and Hold"), size = line_size) +
@@ -418,8 +422,8 @@ ggplot(cum_ret_m, aes(x = date)) +
                 linetype = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, color = "ARIMA",
                 linetype = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, color = "EWMA",
-                linetype = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, color = "ESA",
+                linetype = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, color = "GARCH",
                 linetype = "GARCH"), size = line_size) +
   scale_y_continuous(trans = "log10",
@@ -448,20 +452,20 @@ ggplot(cum_ret_m, aes(x = date)) +
                      values = c("Buy and Hold" = black_col[5],
                                 "Realized Variance" = black_col[4],
                                 "ARIMA" = black_col[3],
-                                "EWMA" = black_col[2],
+                                "ESA" = black_col[2],
                                 "GARCH" = black_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH")) +
+                                "ARIMA", "ESA", "GARCH")) +
   scale_linetype_manual(name = "", 
                         values = c("Buy and Hold" = "solid",
                                    "Realized Variance" = "dotted",
                                    "ARIMA" = "dotdash",
-                                   "EWMA" = "twodash",
+                                   "ESA" = "twodash",
                                    "GARCH" = "longdash"),
                         breaks = c("Buy and Hold", "Realized Variance",
-                                   "ARIMA", "EWMA", "GARCH"))
+                                   "ARIMA", "ESA", "GARCH"))
 
-# Calculate and Plot Rolling Average Returns
+# Calculate Rolling Average Returns
 returns_rolling_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
 colnames(returns_rolling_m) <- c("date", "mkt", names)
 returns_rolling_m <- returns_rolling_m %>% mutate(date = returns_m$date)
@@ -476,12 +480,12 @@ for (i in 1:(n_months -1 )) {
 
 ggplot(returns_rolling_m, aes(x=date)) +
   geom_line(aes(y = ARIMA_var_managed, color = "ARIMA"), size = line_size) +
-  geom_line(aes(y = EWMA_var_managed, color = "EWMA"), size = line_size) +
+  geom_line(aes(y = ESA_var_managed, color = "ESA"), size = line_size) +
   geom_line(aes(y = GARCH_var_managed, color = "GARCH"), size = line_size) +
   geom_line(aes(y = mkt, color = "Buy and Hold"), size = line_size) +
   geom_line(aes(y = var_managed, color = "Realized Variance"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
-  theme(legend.position = "bottom", 
+  theme(legend.position = "bottom",
         legend.box.background = element_rect(),
         legend.box.margin = margin(1,1,1,1),
         legend.text = element_text(size = 12),
@@ -495,15 +499,63 @@ ggplot(returns_rolling_m, aes(x=date)) +
   scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
                                            "Realized Variance" = green_col, 
                                            "ARIMA" = blue_col[3], 
-                                           "EWMA" = blue_col[2], 
+                                           "ESA" = blue_col[2], 
                                            "GARCH" = blue_col[1]))
 
-# Analyze Distribution of Returns
+# Calculate Drawdowns
+drawdown_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
+colnames(drawdown_m) <- c("date", "mkt", names)
+drawdown_m <- drawdown_m %>% mutate(date = returns_m$date)
+drawdown_m[1,-1] <- 0
+
+for (i in 2:(n_months - 1)) {
+  drawdown_m$mkt[i] <- min(0, (cum_ret_m$mkt[i]-max(cum_ret_m$mkt[1:i]))/
+                             max(cum_ret_m$mkt[1:i]))
+  for (j in 1:length(names)) {
+    drawdown_m[i,names[j]] <- min(0, (cum_ret_m[i,names[j]]-max(cum_ret_m[1:i,names[j]]))/
+                                    max(cum_ret_m[1:i,names[j]]))
+  }
+}
+
+ggplot(drawdown_m, aes(x = date)) +
+  geom_line(aes(y=mkt, color = "Buy and Hold"), size = line_size) +
+  geom_line(aes(y=var_managed, color = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, color = "ESA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, color = "GARCH"), size = line_size) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom",
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Drawdown") + 
+  xlab("") + ylab("") +
+  scale_color_manual(name = "", 
+                     values = c("Buy and Hold" = grey_col,
+                                "Realized Variance" = green_col,
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
+                     breaks = c("Buy and Hold", "Realized Variance",
+                                "ARIMA", "ESA", "GARCH"))
+
+# Analyze Distribution of Returns and Weigths
 stat_ret_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "P25", "P50",
                     "P75", "Max")
 stat_ret_m <- data.frame(matrix(ncol = length(names), 
                                 nrow = length(stat_ret_names),
                                 dimnames = list(stat_ret_names, names_clean)))
+
+stat_weight_names <- c("Mean", "SD", "Skewness", "Kurtosis","P50","P75", "P90", 
+                       "P99", "Max")
+stat_weight_m <- data.frame(matrix(ncol = length(names),
+                                   nrow = length(stat_weight_names),
+                                   dimnames = list(stat_weight_names, names_clean)))
 
 stat_ret_m[1,] <- apply(returns_m[,names], 2, mean)
 stat_ret_m[2,] <- apply(returns_m[,names], 2, sd)
@@ -511,7 +563,20 @@ stat_ret_m[3,] <- apply(returns_m[,names], 2, skewness)
 stat_ret_m[4,] <- apply(returns_m[,names], 2, kurtosis)
 stat_ret_m[5:9,] <- as.data.frame(apply(returns_m[,names], 2, quantile))
 
-stargazer(stat_ret_m, type = "text",summary = FALSE, out = "table.htm", digits = 2)
+stat_weight_m[1,] <- apply(weights_m[,names], 2, mean)
+stat_weight_m[2,] <- apply(weights_m[,names], 2, sd)
+stat_weight_m[3,] <- apply(weights_m[,names], 2, skewness)
+stat_weight_m[4,] <- apply(weights_m[,names], 2, kurtosis)
+stat_weight_m[5:9,] <- as.data.frame(apply(weights_m[,names], 2, quantile, 
+                                           probs = c(0.5, 0.75, 0.9, 0.99, 1)))
+
+stargazer(stat_ret_m, type = "text",summary = FALSE, 
+          title = "Panel A: Return Distribution",
+          out = "table.htm", digits = 2)
+
+stargazer(stat_weight_m, type = "text",summary = FALSE, 
+          title = "Panel B: Weight Distribution",
+          out = "table.htm", digits = 2)
 
 # Plot Density Function of Returns
 ggplot(returns_m) +
@@ -521,7 +586,7 @@ ggplot(returns_m) +
                adjust = 1, size = line_size, geom = "line") +
   stat_density(aes(x=ARIMA_var_managed, color = "ARIMA"), 
                adjust = 1, size = line_size, geom = "line") +
-  stat_density(aes(x=EWMA_var_managed, color = "EWMA"), 
+  stat_density(aes(x=ESA_var_managed, color = "ESA"), 
                adjust = 1, size = line_size, geom = "line") +
   stat_density(aes(x=GARCH_var_managed, color = "GARCH"), 
                adjust = 1, size = line_size, geom = "line") +
@@ -542,33 +607,21 @@ ggplot(returns_m) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
-# Calculate and Plot Drawdowns
-drawdown_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
-colnames(drawdown_m) <- c("date", "mkt", names)
-drawdown_m <- drawdown_m %>% mutate(date = returns_m$date)
-drawdown_m[1,-1] <- 0
-
-for (i in 2:(n_months - 1)) {
-  drawdown_m$mkt[i] <- min(0, (cum_ret_m$mkt[i]-max(cum_ret_m$mkt[1:i]))/
-                             max(cum_ret_m$mkt[1:i]))
-  for (j in 1:length(names)) {
-    drawdown_m[i,names[j]] <- min(0, (cum_ret_m[i,names[j]]-max(cum_ret_m[1:i,names[j]]))/
-                                    max(cum_ret_m[1:i,names[j]]))
-  }
-}
-
-ggplot(drawdown_m, aes(x = date)) +
-  geom_line(aes(y=mkt, color = "Buy and Hold"), size = line_size) +
-  geom_line(aes(y=var_managed, color = "Realized Variance"), size = line_size) +
-  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, color = "EWMA"), size = line_size) +
-  geom_line(aes(y=GARCH_var_managed, color = "GARCH"), size = line_size) +
+ggplot(weights_m) +
+  stat_density(aes(x=var_managed, color = "Realized Variance"), 
+               adjust = 1, size = line_size, geom = "line") +
+  stat_density(aes(x=ARIMA_var_managed, color = "ARIMA"), 
+               adjust = 1, size = line_size, geom = "line") +
+  stat_density(aes(x=ESA_var_managed, color = "ESA"), 
+               adjust = 1, size = line_size, geom = "line") +
+  stat_density(aes(x=GARCH_var_managed, color = "GARCH"), 
+               adjust = 1, size = line_size, geom = "line") +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
         legend.box.background = element_rect(),
@@ -579,16 +632,17 @@ ggplot(drawdown_m, aes(x = date)) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Drawdown") + 
-  xlab("") + ylab("") +
+  ylim(0,1) +
+  ggtitle("Density Function") +
+  ylab("") + xlab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 # Compute Impact of Trading Costs and Breakeven Costs
 breakeven_function_m <- function(cost, strategy) {
@@ -608,7 +662,10 @@ for (i in 1:length(names)) {
   cost_m[i,3] <- breakeven_function_m(0.01, i)
   cost_m[i,4] <- breakeven_function_m(0.1, i)
   cost_m[i,5] <- breakeven_function_m(0.14, i)
-  cost_m[i,6] <- uniroot(breakeven_function_m, strategy = i, lower = 0, upper = 100)$root
+  cost_m[i,6] <- paste(
+    sprintf("%.0f", 
+            uniroot(breakeven_function_m, strategy = i, lower = 0, upper = 100)$root *100),
+    "bps", sep = "")
 }
 
 stargazer(cost_m, type = "text", summary = FALSE, out = "table.htm", digits = 2)
@@ -625,7 +682,7 @@ leverage_function_m <- function(leverage, strategy) {
 }
 
 leverage_m <- data.frame(matrix(nrow = length(names), ncol = 4))
-colnames(leverage_m) <- c("Alpha", "100%", "50%", "0%")
+colnames(leverage_m) <- c("No Constraint", "100% Leverage", "50% Leverage", "0% Leverage")
 rownames(leverage_m) <- names_clean
 
 for (i in 1:length(names)) {
@@ -636,22 +693,6 @@ for (i in 1:length(names)) {
 }
 
 stargazer(leverage_m, type = "text", summary = FALSE, out = "table.htm", digits = 2)
-
-# Analyze Distribution of Weights
-stat_weight_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "P25", "P50",
-                       "P75", "P90", "P99", "Max")
-stat_weight_m <- data.frame(matrix(ncol = length(names),
-                                   nrow = length(stat_weight_names),
-                                   dimnames = list(stat_weight_names, names_clean)))
-
-stat_weight_m[1,] <- apply(weights_m[,names], 2, mean)
-stat_weight_m[2,] <- apply(weights_m[,names], 2, sd)
-stat_weight_m[3,] <- apply(weights_m[,names], 2, skewness)
-stat_weight_m[4,] <- apply(weights_m[,names], 2, kurtosis)
-stat_weight_m[5:11,] <- as.data.frame(apply(weights_m[,names], 2, quantile, 
-                                            probs = c(0, 0.25, 0.5, 0.75, 0.9, 0.99, 1)))
-
-stargazer(stat_weight_m, type = "text",summary = FALSE, out = "table.htm", digits = 2)
 
 # Replicate Regressions Controlling for Recessions
 reg_rec_m <- vector(mode = "list", length = length(names))
@@ -709,7 +750,7 @@ alternative_regression_function <- function(cost, strategy) {
   return(lm(a ~ m + b_m))
 }
 
-cost_vector <- c(0.01, 0.1, 0.14, 0.3)
+cost_vector <- c(0.01, 0.1, 0.14, 0.5)
 strat_cost_m <- data.frame(matrix(nrow = length(cost_vector) * 2, 
                                   ncol = length(names_clean[-1])))
 colnames(strat_cost_m) <- names_clean[-1]
@@ -720,7 +761,7 @@ for (i in 1:(length(cost_vector) * 2)) {
     rownames(strat_cost_m)[i] <- paste(cost_vector[q] * 100, "bps")
   }
   else {
-    rownames(strat_cost_m)[i] <- paste("p", q, sep = "")
+    rownames(strat_cost_m)[i] <- paste("se", q, sep = "")
     q <- q + 1
   }
 }
@@ -736,7 +777,7 @@ for (i in 1:(length(cost_vector) * 2)) {
     else {
       strat_cost_m[i,j] <- 
         paste(" (",
-              coeftest(reg, vcovHC(reg, type = "HC"))[1,4] %>% 
+              coeftest(reg, vcovHC(reg, type = "HC"))[1,2] %>% 
                 round(2) %>% format(nsmall = 2),
               ")", 
               sep = "")
@@ -747,45 +788,11 @@ for (i in 1:(length(cost_vector) * 2)) {
 
 stargazer(strat_cost_m, type = "text", summary = FALSE, out = "table.htm")
 
-# Analysis of Bad Times With Correlation and RMSD
-
-cor_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-EWMA ", 
-                 "Mkt-GARCH ", "Var-ARIMA ", "Var-EWMA ", "Var-GARCH ")
-rmsd_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-EWMA ", 
-                  "Mkt-GARCH ", "Var-ARIMA ", "Var-EWMA ", "Var-GARCH ")
-bad_times_names <- c("Whole Sample", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
-                     "Var < -10% w > 1", "Var < -15% w > 1")
-
-cor_m <- data.frame(matrix(nrow = length(cor_names_m),
-                           ncol = length(bad_times_names)))
-rmsd_m <- data.frame(matrix(nrow = length(rmsd_names_m),
-                            ncol = length(bad_times_names)))
-
-rownames(cor_m) <- cor_names_m
-rownames(rmsd_m) <- rmsd_names_m
-colnames(cor_m) <- bad_times_names
-colnames(rmsd_m) <- bad_times_names
-
-# Compute Respective Statistics for Whole Sample
-cor_m[1,1] <- nrow(returns_m)
-rmsd_m[1,1] <- nrow(returns_m)
-
-for (i in 1:(length(cor_names_m) - 1)) {
-  if (i <= length(names)) {
-    cor_m[i + 1,1] <- cor(returns_m$mkt, returns_m[,names[i]])
-    rmsd_m[i + 1,1] <- sqrt(mean((returns_m$mkt - returns_m[,names[i]])^2))
-  } 
-  else {
-    cor_m[i + 1,1] <- cor(returns_m$var_managed, returns_m[,names[i-length(names)+1]])
-    rmsd_m[i + 1,1] <- sqrt(mean((returns_m$var - returns_m[,names[i-length(names)+1]])^2))
-  }
-}
-
-# Compute Respective Statistics for Extreme Periods
+# Analysis of Bad Periods With Delta w
 bd_times <- returns_m
 bd_times <- bd_times %>% mutate(weight_Var = weights_m$var_managed,
                                 weight_ARIMA = weights_m$ARIMA_var_managed,
-                                weight_EWMA = weights_m$EWMA_var_managed, 
+                                weight_ESA = weights_m$ESA_var_managed, 
                                 weight_GARCH = weights_m$GARCH_var_managed)
 
 extreme_periods <- list()
@@ -793,32 +800,8 @@ extreme_periods[[1]] <- bd_times %>% filter(mkt < 0 & weight_Var > 0)
 extreme_periods[[2]] <- bd_times %>% filter(mkt < -5 & weight_Var > 1)
 extreme_periods[[3]] <- bd_times %>% filter(var_managed < -10 & weight_Var > 1)
 extreme_periods[[4]] <- bd_times %>% filter(var_managed < -15 & weight_Var > 1)
-
-for (i in 1:length(extreme_periods)) {
-  cor_m[1, i + 1] <- nrow(extreme_periods[[i]])
-  rmsd_m[1, i + 1] <- nrow(extreme_periods[[i]])
-  for (j in 1:(length(cor_names_m) - 1)) {
-    if (j <= length(names)) {
-      cor_m[j + 1, i + 1] <- cor(extreme_periods[[i]]$mkt, 
-                                 extreme_periods[[i]][,names[j]])
-      rmsd_m[j + 1,i + 1] <- sqrt(mean((extreme_periods[[i]]$mkt - 
-                                          extreme_periods[[i]][,names[j]])^2))
-    } 
-    else {
-      cor_m[j + 1,i + 1] <- cor(extreme_periods[[i]]$var_managed, 
-                            extreme_periods[[i]][,names[j-length(names)+1]])
-      rmsd_m[j + 1,i + 1] <- sqrt(mean((extreme_periods[[i]]$var_managed - 
-                                      extreme_periods[[i]][,names[j-length(names)+1]])^2))
-    }
-  }
-}
-
-stargazer(cor_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
-stargazer(rmsd_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
-
-# Analyze Bad Periods With Delta w
 bad_times_names2 <- c("w > 1", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
-                                "Var < -10% w > 1", "Var < -15% w > 1")
+                      "Var < -10% w > 1", "Var < -15% w > 1")
 
 delta_m <- data.frame(matrix(nrow = length(names),
                              ncol = length(bad_times_names2)))
@@ -860,6 +843,63 @@ stargazer(delta_m, summary = FALSE, type = "text",
 stargazer(rel_delta_m, summary = FALSE, type = "text", 
           title = "Panel B: Relative Deviation from Realized Variance Strategy",
           out = "table.htm", digits = 2)
+
+# Analysis of Bad Times With Correlation and RMSD
+
+cor_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-ESA ", 
+                 "Mkt-GARCH ", "Var-ARIMA ", "Var-ESA ", "Var-GARCH ")
+rmsd_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-ESA ", 
+                  "Mkt-GARCH ", "Var-ARIMA ", "Var-ESA ", "Var-GARCH ")
+bad_times_names <- c("Whole Sample", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
+                     "Var < -10% w > 1", "Var < -15% w > 1")
+
+cor_m <- data.frame(matrix(nrow = length(cor_names_m),
+                           ncol = length(bad_times_names)))
+rmsd_m <- data.frame(matrix(nrow = length(rmsd_names_m),
+                            ncol = length(bad_times_names)))
+
+rownames(cor_m) <- cor_names_m
+rownames(rmsd_m) <- rmsd_names_m
+colnames(cor_m) <- bad_times_names
+colnames(rmsd_m) <- bad_times_names
+
+# Compute Respective Statistics for Whole Sample
+cor_m[1,1] <- nrow(returns_m)
+rmsd_m[1,1] <- nrow(returns_m)
+
+for (i in 1:(length(cor_names_m) - 1)) {
+  if (i <= length(names)) {
+    cor_m[i + 1,1] <- cor(returns_m$mkt, returns_m[,names[i]])
+    rmsd_m[i + 1,1] <- sqrt(mean((returns_m$mkt - returns_m[,names[i]])^2))
+  } 
+  else {
+    cor_m[i + 1,1] <- cor(returns_m$var_managed, returns_m[,names[i-length(names)+1]])
+    rmsd_m[i + 1,1] <- sqrt(mean((returns_m$var - returns_m[,names[i-length(names)+1]])^2))
+  }
+}
+
+# Compute Respective Statistics for Extreme Periods
+for (i in 1:length(extreme_periods)) {
+  cor_m[1, i + 1] <- nrow(extreme_periods[[i]])
+  rmsd_m[1, i + 1] <- nrow(extreme_periods[[i]])
+  for (j in 1:(length(cor_names_m) - 1)) {
+    if (j <= length(names)) {
+      cor_m[j + 1, i + 1] <- cor(extreme_periods[[i]]$mkt, 
+                                 extreme_periods[[i]][,names[j]])
+      rmsd_m[j + 1,i + 1] <- sqrt(mean((extreme_periods[[i]]$mkt - 
+                                          extreme_periods[[i]][,names[j]])^2))
+    } 
+    else {
+      cor_m[j + 1,i + 1] <- cor(extreme_periods[[i]]$var_managed, 
+                            extreme_periods[[i]][,names[j-length(names)+1]])
+      rmsd_m[j + 1,i + 1] <- sqrt(mean((extreme_periods[[i]]$var_managed - 
+                                      extreme_periods[[i]][,names[j-length(names)+1]])^2))
+    }
+  }
+}
+
+stargazer(cor_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
+stargazer(rmsd_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
 
 ################################################################################
 #******************* Replicate Over Different Time Periods *******************#
@@ -911,6 +951,7 @@ for (period in 1:as.numeric(count(sub_dates))){
   b_qe_m_sub <- c(1:length(names))
   c_qe_m_sub <- c(1:length(names))
   
+  # Usage of Population Variance, since the prefactor cancels out on aggregate
   for (i in 1:length(names)) {
     a_qe_m_sub[i] <- var(FF_monthly_sub$`mkt-rf`[-1] / 
                            var_m_sub[-n_months_sub,var_names[i]])
@@ -953,9 +994,9 @@ for (period in 1:as.numeric(count(sub_dates))){
     
     reg_output_m_sub[[period]]["SD", i] <- 
       sqrt(trading_months) * sd(returns_m_sub[,names[i]])
-    reg_output_m_sub[[period]]["SR", i] <- trading_months * 
+    reg_output_m_sub[[period]]["SR", i] <- sqrt(trading_months) * 
       (mean(returns_m_sub[,names[i]] - returns_m_sub$rf)) / 
-      (sqrt(trading_months) * sd(returns_m_sub[,names[i]] - returns_m_sub$rf))
+      sd(returns_m_sub[,names[i]])
   }
 }  
 
@@ -993,7 +1034,7 @@ for (period in 1:as.numeric(count(sub_dates))) {
     reg_output_m_sub[[period]]["beta_mkt", i] <- 
       reg_mkt_m_sub[[period]][[i]]$coefficients[2]
     reg_output_m_sub[[period]]["RMSE", i] <- 
-      stats::sigma(reg_mkt_m_sub[[period]][[i]])
+      sqrt(mean(residuals(reg_mkt_m_sub[[period]][[i]])^2))
     reg_output_m_sub[[period]]["AR", i] <- sqrt(trading_months) * 
       reg_output_m_sub[[period]]["alpha_mkt", i] / 
       reg_output_m_sub[[period]]["RMSE", i]
@@ -1094,7 +1135,7 @@ for (frequ in min_frequ:max_frequ) {
     if(i %% frequ == 0) {
       j <- i / frequ
       var_c$date[j] <- FF_daily$date[i]
-      var_c$var[j] <- var(FF_daily$`mkt-rf`[(i - frequ + 1):i])
+      var_c$var[j] <- var(FF_daily$`mkt-rf`[(i - frequ + 1):i]) * (frequ - 1) / frequ
     }
   }
   
@@ -1131,33 +1172,34 @@ for (frequ in min_frequ:max_frequ) {
   
   # Calculate ARIMA Variance
   variance_ts_c <- xts(var_c$var, order.by = var_c$date)
-  ARIMA_model_c <- auto.arima(variance_ts_c, stepwise = FALSE, approximation = FALSE)
+  ARIMA_model_c <- auto.arima(variance_ts_c, stepwise = FALSE, approximation = FALSE,
+                              max.p = 10, max.q = 10, ic = "aic", test = "kpss")
   
   var_c$ARIMA_var <- c(fitted(ARIMA_model_c)[-1], forecast(ARIMA_model_c, h = 1)$mean)
   
-  # Optimize EWMA Parameter
-  EWMA_function_c <- function(lambda)
+  # Optimize ESA Parameter
+  ESA_function_c <- function(lambda)
   {
-    EWMA_var <- c(1:n_custom)
-    EWMA_var[1] <- u_sq_c[1]
+    ESA_var <- c(1:n_custom)
+    ESA_var[1] <- u_sq_c[1]
     for(i in 2:n_custom) {
-      EWMA_var[i] <- lambda * EWMA_var[i-1] + (1 - lambda) * u_sq_c[i]
+      ESA_var[i] <- lambda * ESA_var[i-1] + (1 - lambda) * u_sq_c[i]
     }
-    EWMA_likelihood <- c(1:(n_custom-1))
+    ESA_likelihood <- c(1:(n_custom-1))
     for(i in 1:(n_custom-1)) {
-      EWMA_likelihood[i] <- -log(EWMA_var[i])-u_sq_c[i+1]/EWMA_var[i]
+      ESA_likelihood[i] <- -log(ESA_var[i])-u_sq_c[i+1]/ESA_var[i]
     }
-    return(sum(EWMA_likelihood))
+    return(sum(ESA_likelihood))
   }
-  ewma_max_c <- optimize(EWMA_function_c, interval = c(0, 1), maximum = TRUE, 
+  ESA_max_c <- optimize(ESA_function_c, interval = c(0, 1), maximum = TRUE, 
                          tol = 0.000000000000001)
-  lambda_c <- ewma_max_c$maximum
+  lambda_c <- ESA_max_c$maximum
   
-  # Calculate EWMA Variance
-  var_c$EWMA_var <- c(1:n_custom)
-  var_c$EWMA_var[1] <- var_c$var[1]
+  # Calculate ESA Variance
+  var_c$ESA_var <- c(1:n_custom)
+  var_c$ESA_var[1] <- var_c$var[1]
   for (i in 2:n_custom) {
-    var_c$EWMA_var[i] <- lambda_c * var_c$EWMA_var[i - 1] + (1 - lambda_c) * 
+    var_c$ESA_var[i] <- lambda_c * var_c$ESA_var[i - 1] + (1 - lambda_c) * 
       var_c$var[i]
   }
 
@@ -1198,6 +1240,7 @@ for (frequ in min_frequ:max_frequ) {
   b_qe_c <- c(1:length(names))
   c_qe_c <- c(1:length(names))
   
+  # Usage of Population Variance, since the prefactor cancels out on aggregate
   for (i in 1:length(names)) {
     a_qe_c[i] <- var(returns_c$`mkt-rf` / var_c[-n_custom,var_names[i]])
     b_qe_c[i] <- 2 * cov(returns_c$`mkt-rf` / var_c[-n_custom,var_names[i]], returns_c$rf)
@@ -1277,17 +1320,19 @@ for (frequ in min_frequ:max_frequ) {
   
   for (i in 1:length(names)) {
     reg_output_c[[mod_num]]["alpha_mkt", i] <- reg_mkt_c[[i]]$coefficients[1]
-    reg_output_c[[mod_num]]["RMSE", i] <- stats::sigma(reg_mkt_c[[i]])
+    reg_output_c[[mod_num]]["RMSE", i] <- sqrt(mean(residuals(reg_mkt_c[[i]])^2))
     reg_output_c[[mod_num]]["Appr_Ratio", i] <- sqrt(trading_year / frequ) * 
       reg_output_c[[mod_num]]["alpha_mkt", i] / reg_output_c[[mod_num]]["RMSE", i]
   }
   
   for (i in 1:length(names)) {
     reg_output_cost_c[[mod_num]]["alpha_mkt", i] <- reg_mkt_cost_c[[i]]$coefficients[1]
-    reg_output_cost_c[[mod_num]]["RMSE", i] <- stats::sigma(reg_mkt_cost_c[[i]])
+    reg_output_cost_c[[mod_num]]["RMSE", i] <- sqrt(mean(residuals(reg_mkt_cost_c[[i]])^2))
     reg_output_cost_c[[mod_num]]["Appr_Ratio", i] <- sqrt(trading_year / frequ) * 
       reg_output_cost_c[[mod_num]]["alpha_mkt", i] / reg_output_cost_c[[mod_num]]["RMSE", i]
   }
+  print(paste("Progress: ", frequ - min_frequ + 1, "/",
+              max_frequ - min_frequ + 1, sep = ""))
 }
 
 # Consolidate Alphas and Appraisal Ratios
@@ -1320,7 +1365,7 @@ for (i in 1:(max_frequ - min_frequ + 1)) {
 ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1337,14 +1382,14 @@ ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
   ylim(0, 6) +
   scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
                                            "Realized Variance" = green_col, 
-                                           "ARIMA" = blue_col[1], 
-                                           "EWMA" = blue_col[2], 
-                                           "GARCH" = blue_col[3]))
+                                           "ARIMA" = blue_col[3], 
+                                           "ESA" = blue_col[2], 
+                                           "GARCH" = blue_col[1]))
 
 ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1362,16 +1407,16 @@ ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1389,16 +1434,16 @@ ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1416,16 +1461,16 @@ ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1442,16 +1487,16 @@ ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=EWMA_var_managed, col = "EWMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
   geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -1468,11 +1513,11 @@ ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
                                 "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[1],
-                                "EWMA" = blue_col[2],
-                                "GARCH" = blue_col[3]),
+                                "ARIMA" = blue_col[3],
+                                "ESA" = blue_col[2],
+                                "GARCH" = blue_col[1]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "EWMA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH"))
 
 ################################################################################
 #******************************** Daily Level ********************************#
@@ -1483,13 +1528,6 @@ colnames(var_d) <- c("date", "var")
 var_d$var <- FF_daily$u_sq
 
 var_d <- var_d %>% mutate(date = FF_daily$date)
-
-# Calculate ARIMA Variance
-variance_ts_d <- xts(var_d$var, order.by = var_d$date)
-
-ARIMA_model_d <- auto.arima(variance_ts_d, stepwise = FALSE, approximation = FALSE)
-
-var_d$ARIMA_var <- c(fitted(ARIMA_model_d)[-1], forecast(ARIMA_model_d, h = 1)$mean)
 
 # Optimize EWMA Parameter
 EWMA_function_d <- function(lambda) {
@@ -1546,7 +1584,7 @@ for (i in 2:n_days) {
 }
 
 # Calculate c with Midnight Formula
-names_d <- c("ARIMA_var_managed", "EWMA_var_managed", "GARCH_var_managed")
+names_d <- c("EWMA_var_managed", "GARCH_var_managed")
 c_d <- data.frame(matrix(ncol = length(names_d)))
 colnames(c_d) <- names_d
 
@@ -1554,6 +1592,7 @@ a_qe_d <- c(1:length(names_d))
 b_qe_d <- c(1:length(names_d))
 c_qe_d <- c(1:length(names_d))
 
+# Usage of Population Variance, since the prefactor cancels out on aggregate
 for (i in 1:length(names_d)) {
   a_qe_d[i] <- var(FF_daily$`mkt-rf`[-1] / var_d[-n_days,var_names[i+1]])
   b_qe_d[i] <- 2 * cov(FF_daily$`mkt-rf`[-1] / 
@@ -1627,10 +1666,9 @@ for (i in 1:length(names_d)) {
   reg_output_d["alpha_mkt", i] <- reg_mkt_d[[i]]$coefficients[1]
   reg_output_d["beta_mkt", i] <- reg_mkt_d[[i]]$coefficients[2]
   reg_output_d["R^2", i] <- summary(reg_mkt_d[[i]])$r.squared
-  reg_output_d["RMSE", i] <- stats::sigma(reg_mkt_d[[i]])
-  reg_output_d["SR", i] <- trading_year * 
-    (mean(returns_d[,names_d[i]] - returns_d$rf)) / 
-    (sqrt(trading_year) * sd(returns_d[,names_d[i]] - returns_d$rf))
+  reg_output_d["RMSE", i] <- sqrt(mean(residuals(reg_mkt_d[[i]])^2))
+  reg_output_d["SR", i] <- sqrt(trading_year) * 
+    (mean(returns_d[,names_d[i]] - returns_d$rf)) / sd(returns_d[,names_d[i]])
   reg_output_d["AR", i] <- sqrt(trading_year) * 
     reg_output_d["alpha_mkt", i] / reg_output_d["RMSE", i]
   reg_output_d["alpha_FF3", i] <- reg_FF3_d[[i]]$coefficients[1]
@@ -1646,7 +1684,7 @@ for (i in 1:(length(names)-1)) {
 }
 
 stargazer(reg_mkt_d[[1]], reg_mkt_d[[2]], reg_mkt_d[[3]],
-          se = list(reg_mkt_se_m[[1]], reg_mkt_se_m[[2]], reg_mkt_se_m[[3]]),
+          se = list(reg_mkt_se_d[[1]], reg_mkt_se_d[[2]], reg_mkt_se_d[[3]]),
           type = "text", 
           keep.stat = c("n", "rsq", "ser"), 
           df = FALSE, 
