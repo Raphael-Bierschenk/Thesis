@@ -675,7 +675,8 @@ ggplot() +
                                 "EWMA" = grey_col[6],
                                 "GARCH" = grey_col[5]),
                      breaks = c("Buy and Hold", "Base Strategy",
-                                "Var 1 year", "EWMA", "GARCH"))
+                                "Var 1 year", "EWMA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Figure 3: Alphas for one month, one year interval, EWMA and GARCH strategy by quantile
 alphas_figure_3 <- list(0,0,0,0)
@@ -713,7 +714,8 @@ ggplot() +
                                 "EWMA" = blue_col[7],
                                 "GARCH" = blue_col[6]),
                      breaks = c("one month", "one year",
-                                "EWMA", "GARCH"))
+                                "EWMA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 
 # Figure 4: Average absolute weights by quantile over interval
@@ -745,7 +747,8 @@ ggplot() +
                                 "50% quantile" = blue_col[6],
                                 "0% quantile" = blue_col[5]),
                      breaks = c("95.5% quantile", "90% quantile",
-                                "80% quantile", "50% quantile", "0% quantile"))
+                                "80% quantile", "50% quantile", "0% quantile")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Figure 5: Alphas for one month, one year interval, EWMA and GARCH strategy for
 # the 0% quantile considering transaction costs
@@ -784,7 +787,8 @@ ggplot() +
                                 "EWMA" = blue_col[7],
                                 "GARCH" = blue_col[6]),
                      breaks = c("one month", "one year",
-                                "EWMA", "GARCH"))
+                                "EWMA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 
 # Figure 6: Example for when better to exclude last returns: April 1927

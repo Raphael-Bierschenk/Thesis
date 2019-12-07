@@ -211,15 +211,6 @@ ggplot(var_m, aes(x = date)) +
                      breaks = c("Realized Variance",
                                 "ARIMA", "ESA", "GARCH")) +
   guides(colour = guide_legend(override.aes = list(size = 1.2)))
-  #guides(linetype = guide_legend(override.aes = list(size = 5))) #+
-  # scale_linetype_manual(name = "", 
-  #                    values = c("Buy and Hold" = "solid",
-  #                               "Realized Variance" = "dotted",
-  #                               "ARIMA" = "dotdash",
-  #                               "ESA" = "twodash",
-  #                               "GARCH" = "longdash"),
-  #                    breaks = c("Buy and Hold", "Realized Variance",
-  #                               "ARIMA", "ESA", "GARCH"))
 
 # Analyze Predictive Power of Variance Estimates with Regressions
 var_names <- c("var", "ARIMA_var", "ESA_var", "GARCH_var")
@@ -426,16 +417,11 @@ for (i in 2:n_months) {
 cum_ret_m[n_months,]
 
 ggplot(cum_ret_m, aes(x = date)) +
-  geom_line(aes(y=mkt, color = "Buy and Hold",
-                linetype = "Buy and Hold"), size = line_size) +
-  geom_line(aes(y=var_managed, color = "Realized Variance",
-                linetype = "Realized Variance"), size = line_size) +
-  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA",
-                linetype = "ARIMA"), size = line_size) +
-  geom_line(aes(y=ESA_var_managed, color = "ESA",
-                linetype = "ESA"), size = line_size) +
-  geom_line(aes(y=GARCH_var_managed, color = "GARCH",
-                linetype = "GARCH"), size = line_size) +
+  geom_line(aes(y=mkt, color = "Buy and Hold"), size = line_size) +
+  geom_line(aes(y=var_managed, color = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, color = "ARIMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, color = "ESA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, color = "GARCH"), size = line_size) +
   scale_y_continuous(trans = "log10",
                      breaks = trans_breaks('log10', function(x) 10^x),
                      minor_breaks = c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,
@@ -459,21 +445,14 @@ ggplot(cum_ret_m, aes(x = date)) +
   ggtitle("Cumulative Performance") + 
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = black_col[5],
-                                "Realized Variance" = black_col[4],
-                                "ARIMA" = black_col[3],
-                                "ESA" = black_col[2],
-                                "GARCH" = black_col[1]),
+                     values = c("Buy and Hold" = "#000000",
+                                "Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
                      breaks = c("Buy and Hold", "Realized Variance",
                                 "ARIMA", "ESA", "GARCH")) +
-  scale_linetype_manual(name = "", 
-                        values = c("Buy and Hold" = "solid",
-                                   "Realized Variance" = "dotted",
-                                   "ARIMA" = "dotdash",
-                                   "ESA" = "twodash",
-                                   "GARCH" = "longdash"),
-                        breaks = c("Buy and Hold", "Realized Variance",
-                                   "ARIMA", "ESA", "GARCH"))
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Calculate Rolling Average Returns
 returns_rolling_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
@@ -506,11 +485,15 @@ ggplot(returns_rolling_m, aes(x=date)) +
         panel.grid.minor = element_blank()) +
   ggtitle("Rolling One Year Return") +
   xlab("") + ylab("") +
-  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
-                                           "Realized Variance" = green_col, 
-                                           "ARIMA" = blue_col[3], 
-                                           "ESA" = blue_col[2], 
-                                           "GARCH" = blue_col[1]))
+  scale_color_manual(name = "", 
+                     values = c("Buy and Hold" = "#000000",
+                                "Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Buy and Hold", "Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Calculate Drawdowns
 drawdown_m <- data.frame(matrix(nrow = n_months - 1, ncol = length(names) + 2))
@@ -546,13 +529,14 @@ ggplot(drawdown_m, aes(x = date)) +
   ggtitle("Drawdown") + 
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
+                     values = c("Buy and Hold" = "#000000",
+                                "Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Analyze Distribution of Returns and Weigths
 stat_ret_names <- c("Mean", "SD", "Skewness", "Kurtosis", "Min", "P25", "P50",
@@ -589,7 +573,7 @@ stargazer(stat_weight_m, type = "text",summary = FALSE,
           out = "table.htm", digits = 2)
 
 # Plot Density Function of Returns
-ggplot(returns_m) +
+fig09 <- ggplot(returns_m) +
   stat_density(aes(x=mkt, color = "Buy and Hold"), 
                adjust = 1, size = line_size, geom = "line") +
   stat_density(aes(x=var_managed, color = "Realized Variance"), 
@@ -612,18 +596,19 @@ ggplot(returns_m) +
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
   ylim(0,0.15) +
-  ggtitle("Density Function") +
+  ggtitle("Density Function of Returns") +
   ylab("") + xlab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
+                     values = c("Buy and Hold" = "#000000",
+                                "Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
-ggplot(weights_m) +
+fig10 <- ggplot(weights_m) +
   stat_density(aes(x=var_managed, color = "Realized Variance"), 
                adjust = 1, size = line_size, geom = "line") +
   stat_density(aes(x=ARIMA_var_managed, color = "ARIMA"), 
@@ -643,16 +628,19 @@ ggplot(weights_m) +
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
   ylim(0,1) +
-  ggtitle("Density Function") +
+  ggtitle("Density Function of Weights") +
   ylab("") + xlab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
                      breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
+
+grid.arrange(fig09, fig10, nrow = 2)
+
 
 # Compute Impact of Trading Costs and Breakeven Costs
 breakeven_function_m <- function(cost, strategy) {
@@ -1388,7 +1376,7 @@ for (i in 1:(max_frequ - min_frequ + 1)) {
   }
 }
 
-ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
+fig04 <- ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
   geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
@@ -1403,70 +1391,19 @@ ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Alpha Depending on Rebalancing Period") +
-  xlab("") + ylab("") +
-  ylim(0, 6) +
-  scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
-                                           "Realized Variance" = green_col, 
-                                           "ARIMA" = blue_col[3], 
-                                           "ESA" = blue_col[2], 
-                                           "GARCH" = blue_col[1]))
-
-ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
-  theme_bw(base_family = "Times New Roman") +
-  theme(legend.position = "bottom", 
-        legend.box.background = element_rect(),
-        legend.box.margin = margin(1,1,1,1),
-        legend.text = element_text(size = 12),
-        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
-        axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  ggtitle("Appraisal Ratio Depending on Rebalancing Period") +
-  xlab("") + ylab("") +
-  ylim(0, 0.5) +
-  scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
-
-ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
-  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
-  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
-  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
-  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
-  theme_bw(base_family = "Times New Roman") +
-  theme(legend.position = "bottom", 
-        legend.box.background = element_rect(),
-        legend.box.margin = margin(1,1,1,1),
-        legend.text = element_text(size = 12),
-        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
-        axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11),
-        panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank()) +
-  ggtitle("Alpha Depending on Holding Period (10 bps Trading Cost)") +
+  ggtitle("Alpha Depending on Holding Period") +
   xlab("") + ylab("") +
   ylim(0, 6) +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
-ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
+fig15 <- ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
   geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
@@ -1481,19 +1418,19 @@ ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Appraisal Ratio Depending on Holding Period (10 bps Trading Cost)") +
+  ggtitle("Appraisal Ratio Depending on Holding Period") +
   xlab("") + ylab("") +
   ylim(0, 0.5) +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
-ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
+fig05 <- ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
   geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
@@ -1508,18 +1445,73 @@ ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
+  ggtitle("Alpha Depending on Holding Period (10bps Transactions Costs)") +
+  xlab("") + ylab("") +
+  ylim(0, 6) +
+  scale_color_manual(name = "", 
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
+
+fig16 <- ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Appraisal Ratio Depending on Holding Period (10bps Transaction Costs)") +
+  xlab("") + ylab("") +
+  ylim(0, 0.5) +
+  scale_color_manual(name = "", 
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
+
+fig19 <- ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
+  geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
+  geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
+  geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
+  geom_line(aes(y=GARCH_var_managed, col = "GARCH"), size = line_size) +
+  theme_bw(base_family = "Times New Roman") +
+  theme(legend.position = "bottom", 
+        legend.box.background = element_rect(),
+        legend.box.margin = margin(1,1,1,1),
+        legend.text = element_text(size = 12),
+        plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
+        axis.text.x = element_text(size = 11),
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  scale_y_continuous(breaks = c(25000,50000,75000), limits = c(0,100000)) +
   ggtitle("Cumulated Return Depending on Holding Period") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
-ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
+fig20 <- ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
   geom_line(aes(y=var_managed, col = "Realized Variance"), size = line_size) +
   geom_line(aes(y=ARIMA_var_managed, col = "ARIMA"), size = line_size) +
   geom_line(aes(y=ESA_var_managed, col = "ESA"), size = line_size) +
@@ -1534,16 +1526,21 @@ ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
+  scale_y_continuous(breaks = c(25000,50000,75000), limits = c(0,100000)) +
   ggtitle("Cumulated Return Depending on Holding Period (10 bps Trading Cost)") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = grey_col,
-                                "Realized Variance" = green_col,
-                                "ARIMA" = blue_col[3],
-                                "ESA" = blue_col[2],
-                                "GARCH" = blue_col[1]),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
+                                "ARIMA", "ESA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
+
+grid.arrange(fig04, fig05, nrow = 2)
+grid.arrange(fig15, fig16, nrow = 2)
+grid.arrange(fig19, fig20, nrow = 2)
 
 ################################################################################
 #******************************** Daily Level ********************************#
