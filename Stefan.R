@@ -83,7 +83,7 @@ for (i in 2:nrow(FF_daily)) {
 #                    Strategies with flexible time periods                     #
 ################################################################################
 
-# try out daily arima
+trading_days <- 264
 
 # Generate output lists
 returns_flex_list <- list()
@@ -346,7 +346,7 @@ for (i in 1:length(quantiles)) {
   SR_one_year[i] <- round(mean(returns_one_year[[i]]$VMR - returns_one_year[[i]]$RF) /
     sd(returns_one_year[[i]]$VMR - returns_one_year[[i]]$RF) * sqrt(factors_one_year[i]),2)
   appr_ratio_one_year[i] <- round(models_mkt_one_year[[i]]$coefficients[1] /
-    stats::sigma(models_mkt_one_year[[i]]) * sqrt(factors_one_year[i]),2)
+    sqrt(mean(residuals(models_mkt_one_year[[i]])^2)) * sqrt(factors_one_year[i]),2)
   alphas_ff3_one_year[i] <- paste(round(models_ff3_one_year[[i]]$coefficients[1],2),
                                ff3_alpha_stars(models_ff3_one_year[[i]]),sep = "")
   se_ff3_one_year[i] <- paste("(",round(robust_se_ff3_one_year[[i]][1],2),")",sep = "")
@@ -394,7 +394,7 @@ for (i in 1:length(quantiles)) {
   SR_one_month[i] <- round(mean(returns_one_month[[i]]$VMR - returns_one_month[[i]]$RF) /
                             sd(returns_one_month[[i]]$VMR - returns_one_month[[i]]$RF) * sqrt(factors_one_month[i]),2)
   appr_ratio_one_month[i] <- round(models_mkt_one_month[[i]]$coefficients[1] /
-                                    stats::sigma(models_mkt_one_month[[i]]) * sqrt(factors_one_month[i]),2)
+                                    sqrt(mean(residuals(models_mkt_one_month[[i]])^2)) * sqrt(factors_one_month[i]),2)
   alphas_ff3_one_month[i] <- paste(round(models_ff3_one_month[[i]]$coefficients[1],2),
                                   ff3_alpha_stars(models_ff3_one_month[[i]]),sep = "")
   se_ff3_one_month[i] <- paste("(",round(robust_se_ff3_one_month[[i]][1],2),")",sep = "")
@@ -442,7 +442,7 @@ for (i in 1:length(quantiles)) {
   SR_EWMA[i] <- round(mean(returns_EWMA[[i]]$VMR - returns_EWMA[[i]]$RF) /
                              sd(returns_EWMA[[i]]$VMR - returns_EWMA[[i]]$RF) * sqrt(factors_EWMA[i]),2)
   appr_ratio_EWMA[i] <- round(models_mkt_EWMA[[i]]$coefficients[1] /
-                                     stats::sigma(models_mkt_EWMA[[i]]) * sqrt(factors_EWMA[i]),2)
+                                     sqrt(mean(residuals(models_mkt_EWMA[[i]])^2)) * sqrt(factors_EWMA[i]),2)
   alphas_ff3_EWMA[i] <- paste(round(models_ff3_EWMA[[i]]$coefficients[1],2),
                                    ff3_alpha_stars(models_ff3_EWMA[[i]]),sep = "")
   se_ff3_EWMA[i] <- paste("(",round(robust_se_ff3_EWMA[[i]][1],2),")",sep = "")
@@ -490,7 +490,7 @@ for (i in 1:length(quantiles)) {
   SR_GARCH[i] <- round(mean(returns_GARCH[[i]]$VMR - returns_GARCH[[i]]$RF) /
                         sd(returns_GARCH[[i]]$VMR - returns_GARCH[[i]]$RF) * sqrt(factors_GARCH[i]),2)
   appr_ratio_GARCH[i] <- round(models_mkt_GARCH[[i]]$coefficients[1] /
-                                stats::sigma(models_mkt_GARCH[[i]]) * sqrt(factors_GARCH[i]),2)
+                                sqrt(mean(residuals(models_mkt_GARCH[[i]])^2)) * sqrt(factors_GARCH[i]),2)
   alphas_ff3_GARCH[i] <- paste(round(models_ff3_GARCH[[i]]$coefficients[1],2),
                               ff3_alpha_stars(models_ff3_GARCH[[i]]),sep = "")
   se_ff3_GARCH[i] <- paste("(",round(robust_se_ff3_GARCH[[i]][1],2),")",sep = "")
@@ -515,7 +515,7 @@ stargazer(models_mkt_GARCH,
                            c("Alpha (&#945;) FF3", alphas_ff3_GARCH),
                            c("", se_ff3_GARCH)))
 
-# Alphas and Appraisal Ratios (incl transaction costs)
+# Alphas, Appraisal Ratios & RMSE (incl transaction costs)
 output_flex_alpha_list <- list()
 output_flex_appr_ratio_list <- list()
 output_flex_rmse_list <- list()
@@ -526,8 +526,8 @@ for (quantile in 1:length(quantiles)) {
   colnames(output_flex_alpha) <- c("1 week", "2 weeks", "1 months", "2 months",
                                    "3 months", "6 months", "1 year", "2 years",
                                    "EWMA", "GARCH")
-  output_flex_appr_ratio <- data.frame(matrix(ncol = length(intervals)+2, nrow = length(names_cost)))
-  rownames(output_flex_appr_ratio) <- names_cost
+  output_flex_appr_ratio <- data.frame(matrix(ncol = length(intervals)+2, nrow = length(names_cost)-1))
+  rownames(output_flex_appr_ratio) <- names_cost[-1]
   colnames(output_flex_appr_ratio) <- c("1 week", "2 weeks", "1 months",
                                         "2 months", "3 months", "6 months",
                                         "1 year", "2 years", "EWMA", "GARCH")
@@ -543,19 +543,18 @@ for (quantile in 1:length(quantiles)) {
     output_flex_alpha[3,i] <- reg_models_flex_mkt_1bps[[index]]$coefficients[1]
     output_flex_alpha[4,i] <- reg_models_flex_mkt_10bps[[index]]$coefficients[1]
     output_flex_alpha[5,i] <- reg_models_flex_mkt_14bps[[index]]$coefficients[1]
-    output_flex_appr_ratio[1,i] <- mean(returns_flex_list[[index]]$AbsDeltaW[-1])
-    output_flex_appr_ratio[2,i] <- reg_models_flex_mkt[[index]]$coefficients[1] /
-      stats::sigma(reg_models_flex_mkt[[index]]) * sqrt(factor_flex_list[index])
-    output_flex_appr_ratio[3,i] <- reg_models_flex_mkt_1bps[[index]]$coefficients[1] /
-      stats::sigma(reg_models_flex_mkt_1bps[[index]]) * sqrt(factor_flex_list[index])
-    output_flex_appr_ratio[4,i] <- reg_models_flex_mkt_10bps[[index]]$coefficients[1] /
-      stats::sigma(reg_models_flex_mkt_10bps[[index]]) * sqrt(factor_flex_list[index])
-    output_flex_appr_ratio[5,i] <- reg_models_flex_mkt_14bps[[index]]$coefficients[1] /
-      stats::sigma(reg_models_flex_mkt_14bps[[index]]) * sqrt(factor_flex_list[index])
-    output_flex_rmse[1,i] <- stats::sigma(reg_models_flex_mkt[[index]])
-    output_flex_rmse[2,i] <- stats::sigma(reg_models_flex_mkt_1bps[[index]])
-    output_flex_rmse[3,i] <- stats::sigma(reg_models_flex_mkt_10bps[[index]])
-    output_flex_rmse[4,i] <- stats::sigma(reg_models_flex_mkt_14bps[[index]])
+    output_flex_appr_ratio[1,i] <- reg_models_flex_mkt[[index]]$coefficients[1] /
+      sqrt(mean(residuals(reg_models_flex_mkt[[index]])^2)) * sqrt(factor_flex_list[index])
+    output_flex_appr_ratio[2,i] <- reg_models_flex_mkt_1bps[[index]]$coefficients[1] /
+      sqrt(mean(residuals(reg_models_flex_mkt_1bps[[index]])^2)) * sqrt(factor_flex_list[index])
+    output_flex_appr_ratio[3,i] <- reg_models_flex_mkt_10bps[[index]]$coefficients[1] /
+      sqrt(mean(residuals(reg_models_flex_mkt_10bps[[index]])^2)) * sqrt(factor_flex_list[index])
+    output_flex_appr_ratio[4,i] <- reg_models_flex_mkt_14bps[[index]]$coefficients[1] /
+      sqrt(mean(residuals(reg_models_flex_mkt_14bps[[index]])^2)) * sqrt(factor_flex_list[index])
+    output_flex_rmse[1,i] <- sqrt(mean(residuals(reg_models_flex_mkt[[index]])^2))
+    output_flex_rmse[2,i] <- sqrt(mean(residuals(reg_models_flex_mkt_1bps[[index]])^2))
+    output_flex_rmse[3,i] <- sqrt(mean(residuals(reg_models_flex_mkt_10bps[[index]])^2))
+    output_flex_rmse[4,i] <- sqrt(mean(residuals(reg_models_flex_mkt_14bps[[index]])^2))
   }
   output_flex_alpha_list[[quantile]] <- output_flex_alpha
   output_flex_appr_ratio_list[[quantile]] <- output_flex_appr_ratio
@@ -572,7 +571,7 @@ stargazer(output_flex_rmse_list, type = "text",
           summary = c(FALSE,FALSE,FALSE,FALSE,FALSE),
           out = "rmse.htm", digits = 2)
 
-  
+
 ################################################################################
 #                                   Graphs                                     #
 ################################################################################
