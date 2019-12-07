@@ -4,7 +4,7 @@
 ##                                                                            ##  
 ## Author: Raphael Bierschenk, Stefan Wennemar                                ##
 ##                                                                            ##
-## Date Created: 2019-12-09                                                   ##
+## Date Created: 2018-12-09                                                   ##
 ##                                                                            ##
 ## ---------------------------------------------------------------------------##
 
@@ -872,65 +872,50 @@ stargazer(rel_delta_m, summary = FALSE, type = "text",
           title = "Panel B: Relative Deviation from Realized Variance Strategy",
           out = "table.htm", digits = 2)
 
-# Analysis of Bad Times With Correlation and RMSD
+# Analysis of Bad Times With Correlation 
 
 cor_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-ESA ", 
                  "Mkt-GARCH ", "Var-ARIMA ", "Var-ESA ", "Var-GARCH ")
-rmsd_names_m <- c("Observations", "Mkt-Var ", "Mkt-ARIMA ", "Mkt-ESA ", 
-                  "Mkt-GARCH ", "Var-ARIMA ", "Var-ESA ", "Var-GARCH ")
 bad_times_names <- c("Whole Sample", "Mkt < 0% w > 1", "Mkt < -5% w > 1",
                      "Var < -10% w > 1", "Var < -15% w > 1")
 
 cor_m <- data.frame(matrix(nrow = length(cor_names_m),
                            ncol = length(bad_times_names)))
-rmsd_m <- data.frame(matrix(nrow = length(rmsd_names_m),
-                            ncol = length(bad_times_names)))
 
 rownames(cor_m) <- cor_names_m
-rownames(rmsd_m) <- rmsd_names_m
 colnames(cor_m) <- bad_times_names
-colnames(rmsd_m) <- bad_times_names
 
 # Compute Respective Statistics for Whole Sample
 cor_m[1,1] <- nrow(returns_m)
-rmsd_m[1,1] <- nrow(returns_m)
 
 for (i in 1:(length(cor_names_m) - 1)) {
   if (i <= length(names)) {
     cor_m[i + 1,1] <- cor(returns_m$mkt, returns_m[,names[i]])
-    rmsd_m[i + 1,1] <- sqrt(mean((returns_m$mkt - returns_m[,names[i]])^2))
   } 
   else {
     cor_m[i + 1,1] <- cor(returns_m$var_managed, returns_m[,names[i-length(names)+1]])
-    rmsd_m[i + 1,1] <- sqrt(mean((returns_m$var - returns_m[,names[i-length(names)+1]])^2))
   }
 }
 
 # Compute Respective Statistics for Extreme Periods
 for (i in 1:length(extreme_periods)) {
   cor_m[1, i + 1] <- nrow(extreme_periods[[i]])
-  rmsd_m[1, i + 1] <- nrow(extreme_periods[[i]])
   for (j in 1:(length(cor_names_m) - 1)) {
     if (j <= length(names)) {
       cor_m[j + 1, i + 1] <- cor(extreme_periods[[i]]$mkt, 
                                  extreme_periods[[i]][,names[j]])
-      rmsd_m[j + 1,i + 1] <- sqrt(mean((extreme_periods[[i]]$mkt - 
-                                          extreme_periods[[i]][,names[j]])^2))
     } 
     else {
       cor_m[j + 1,i + 1] <- cor(extreme_periods[[i]]$var_managed, 
                             extreme_periods[[i]][,names[j-length(names)+1]])
-      rmsd_m[j + 1,i + 1] <- sqrt(mean((extreme_periods[[i]]$var_managed - 
-                                      extreme_periods[[i]][,names[j-length(names)+1]])^2))
     }
   }
 }
 
 stargazer(cor_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
-stargazer(rmsd_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
 
 ################################################################################
-#******************* Replicate Over Different Time Periods *******************#
+#*************************** Customary Time Periods ***************************#
 
 sub_dates <- data.frame(matrix(nrow = 3, ncol = 2, 
                                dimnames = list(c("Period 1", "Period 2", "Period 3"),
