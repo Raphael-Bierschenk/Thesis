@@ -336,6 +336,7 @@ for (i in 1:length(names)) {
 reg_mkt_m <- vector(mode = "list", length = length(names))
 reg_mkt_se_m <- vector(mode = "list", length = length(names))
 reg_FF3_m <- vector(mode = "list", length = length(names))
+reg_FF3_se_m <- vector(mode = "list", length = length(names))
 
 b_m <- trading_months * returns_m$`mkt-rf`
 b1_m <- trading_months * (FF_monthly$SMB[-1])
@@ -349,6 +350,7 @@ for (i in 1:length(names)) {
   reg_mkt_m[[i]] <- lm(a_m[,names[i]] ~ b_m)
   reg_FF3_m[[i]] <- lm(a_m[,names[i]] ~ b_m + b1_m + b2_m)
   reg_mkt_se_m[[i]] <- reg_mkt_m[[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
+  reg_FF3_se_m[[i]] <- reg_FF3_m[[i]] %>% vcovHC(type = "HC") %>% sqrt() %>% diag()
 }
 
 # Create Ouput Table
@@ -396,6 +398,16 @@ stargazer(reg_mkt_m[[1]], reg_mkt_m[[2]], reg_mkt_m[[3]], reg_mkt_m[[4]],
                              paste("(", 
                                    sprintf("%.2f", as.numeric(reg_output_m["alpha_FF3_se",])),
                                    ")", sep = ""))),
+          digits = 2, out = "table.htm")
+
+stargazer(reg_FF3_m[[1]], reg_FF3_m[[2]], reg_FF3_m[[3]], reg_FF3_m[[4]],
+          se = list(reg_FF3_se_m[[1]], reg_FF3_se_m[[2]],
+                    reg_FF3_se_m[[3]], reg_FF3_se_m[[4]]),
+          type = "text", 
+          keep.stat = c("n", "rsq"), df = FALSE, 
+          column.labels = names_clean,
+          table.layout = "-#c-t-s-",
+          covariate.labels = c("Mkt-RF", "SMB", "HML", "Alpha (&#945;)"),
           digits = 2, out = "table.htm")
 
 # Calculate and Plot Cumulative Return
@@ -737,7 +749,7 @@ stargazer(reg_strat_m[[1]], reg_strat_m[[2]], reg_strat_m[[3]],
           dep.var.labels = names_clean[-1], 
           covariate.labels = c("Mkt-RF", "Var", "Alpha (&#945;)"), 
           out = "table.htm",
-          keep.stat = c("n", "rsq"))
+          keep.stat = c("n", "rsq"), digits = 2)
 
 # Repeat Regression Controlling For Cost
 alternative_regression_function <- function(cost, strategy) {
@@ -750,7 +762,7 @@ alternative_regression_function <- function(cost, strategy) {
   return(lm(a ~ m + b_m))
 }
 
-cost_vector <- c(0.01, 0.1, 0.14, 0.5)
+cost_vector <- c(0, 0.01, 0.1, 0.14, 0.5)
 strat_cost_m <- data.frame(matrix(nrow = length(cost_vector) * 2, 
                                   ncol = length(names_clean[-1])))
 colnames(strat_cost_m) <- names_clean[-1]
@@ -787,6 +799,22 @@ for (i in 1:(length(cost_vector) * 2)) {
 }
 
 stargazer(strat_cost_m, type = "text", summary = FALSE, out = "table.htm")
+
+# Calculate Final Return, Considering Costs
+cum_return_function_m <- function(cost, strategy) {
+  cum_returns_m <- c(1:(n_months))
+  cum_returns_m[1] <- 1
+  for (i in 2:n_months) {
+    ret <- returns_m[i-1, names[strategy]] - w_abs_m[i-1, names[strategy]] * cost
+    cum_returns_m[i] <- cum_returns_m[i-1] * (1 + (ret / 100))
+  }
+  return(cum_returns_m[n_months])
+}
+
+round(cum_return_function_m(0.1, 1) / cum_return_function_m(0, 1) - 1, 2)
+round(cum_return_function_m(0.1, 2) / cum_return_function_m(0, 2) - 1, 2)
+round(cum_return_function_m(0.1, 3) / cum_return_function_m(0, 3) - 1, 2)
+round(cum_return_function_m(0.1, 4) / cum_return_function_m(0, 4) - 1, 2)
 
 # Analysis of Bad Periods With Delta w
 bd_times <- returns_m
@@ -1377,7 +1405,7 @@ ggplot(alpha_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Alpha (Mkt-RF) Depending on Holding Period (in %)") +
+  ggtitle("Alpha Depending on Rebalancing Period") +
   xlab("") + ylab("") +
   ylim(0, 6) +
   scale_color_manual(name = "", values = c("Buy and Hold" = grey_col, 
@@ -1401,7 +1429,7 @@ ggplot(appr_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Appraisal Ratio (Mkt-RF) Depending on Holding Period") +
+  ggtitle("Appraisal Ratio Depending on Rebalancing Period") +
   xlab("") + ylab("") +
   ylim(0, 0.5) +
   scale_color_manual(name = "", 
@@ -1428,7 +1456,7 @@ ggplot(alpha_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Alpha (Mkt-RF) Depending on Holding Period - 10 bps Trading Cost") +
+  ggtitle("Alpha Depending on Holding Period (10 bps Trading Cost)") +
   xlab("") + ylab("") +
   ylim(0, 6) +
   scale_color_manual(name = "", 
@@ -1455,7 +1483,7 @@ ggplot(appr_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Appraisal Ratio (Mkt-RF) Depending on Holding Period - 10 bps Trading Cost") +
+  ggtitle("Appraisal Ratio Depending on Holding Period (10 bps Trading Cost)") +
   xlab("") + ylab("") +
   ylim(0, 0.5) +
   scale_color_manual(name = "", 
@@ -1482,7 +1510,7 @@ ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Cumulated Return Depending on Holding Period (in $)") +
+  ggtitle("Cumulated Return Depending on Holding Period") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
@@ -1508,7 +1536,7 @@ ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Cumulated Return Depending on Holding Period - 10 bps Trading Cost") +
+  ggtitle("Cumulated Return Depending on Holding Period (10 bps Trading Cost)") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col,
