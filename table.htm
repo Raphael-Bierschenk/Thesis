@@ -1,13 +1,19 @@
 
-<table style="text-align:center"><tr><td colspan="4" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td>ARIMA</td><td>ESA</td><td>GARCH</td></tr>
-<tr><td colspan="4" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">0 bps</td><td>1.00</td><td>1.32</td><td>1.04</td></tr>
-<tr><td style="text-align:left">se1</td><td>(0.72)</td><td>(0.97)</td><td>(0.90)</td></tr>
-<tr><td style="text-align:left">1 bps</td><td>1.01</td><td>1.36</td><td>1.07</td></tr>
-<tr><td style="text-align:left">se2</td><td>(0.72)</td><td>(0.97)</td><td>(0.90)</td></tr>
-<tr><td style="text-align:left">10 bps</td><td>1.18</td><td>1.76</td><td>1.32</td></tr>
-<tr><td style="text-align:left">se3</td><td>(0.71)</td><td>(0.97)</td><td>(0.90)</td></tr>
-<tr><td style="text-align:left">14 bps</td><td>1.26</td><td>1.94</td><td>1.43</td></tr>
-<tr><td style="text-align:left">se4</td><td>(0.71)</td><td>(0.96)</td><td>(0.90)</td></tr>
-<tr><td style="text-align:left">50 bps</td><td>2.00</td><td>3.58</td><td>2.47</td></tr>
-<tr><td style="text-align:left">se5</td><td>(0.70)</td><td>(0.95)</td><td>(0.89)</td></tr>
-<tr><td colspan="4" style="border-bottom: 1px solid black"></td></tr></table>
+<table style="text-align:center"><tr><td colspan="13" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left"></td><td colspan="4">1926 - 1957</td><td colspan="4">1957 - 1988</td><td colspan="4">1988 - 2019</td></tr>
+<tr><td style="text-align:left"></td><td>(1)</td><td>(2)</td><td>(3)</td><td>(4)</td><td>(5)</td><td>(6)</td><td>(7)</td><td>(8)</td><td>(9)</td><td>(10)</td><td>(11)</td><td>(12)</td></tr>
+<tr><td style="text-align:left"></td><td>Var</td><td>ARIMA</td><td>ESA</td><td>GARCH</td><td>Var</td><td>ARIMA</td><td>ESA</td><td>GARCH</td><td>Var</td><td>ARIMA</td><td>ESA</td><td>GARCH</td></tr>
+<tr><td colspan="13" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Mkt-RF</td><td>0.56<sup>***</sup></td><td>0.61<sup>***</sup></td><td>0.61<sup>***</sup></td><td>0.71<sup>***</sup></td><td>0.71<sup>***</sup></td><td>0.85<sup>***</sup></td><td>0.89<sup>***</sup></td><td>0.93<sup>***</sup></td><td>0.65<sup>***</sup></td><td>0.75<sup>***</sup></td><td>0.80<sup>***</sup></td><td>0.90<sup>***</sup></td></tr>
+<tr><td style="text-align:left"></td><td>(0.09)</td><td>(0.08)</td><td>(0.08)</td><td>(0.08)</td><td>(0.05)</td><td>(0.05)</td><td>(0.04)</td><td>(0.04)</td><td>(0.06)</td><td>(0.05)</td><td>(0.05)</td><td>(0.04)</td></tr>
+<tr><td style="text-align:left"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td style="text-align:left">Alpha (&#945;)</td><td>9.51<sup>***</sup></td><td>13.34<sup>***</sup></td><td>15.51<sup>***</sup></td><td>12.08<sup>***</sup></td><td>1.86</td><td>-0.12</td><td>-1.86</td><td>-1.62</td><td>4.14<sup>**</sup></td><td>4.14<sup>**</sup></td><td>3.41<sup>**</sup></td><td>1.49</td></tr>
+<tr><td style="text-align:left"></td><td>(3.49)</td><td>(3.20)</td><td>(3.15)</td><td>(2.79)</td><td>(1.98)</td><td>(1.51)</td><td>(1.32)</td><td>(1.04)</td><td>(2.10)</td><td>(1.79)</td><td>(1.63)</td><td>(1.20)</td></tr>
+<tr><td style="text-align:left"></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>
+<tr><td colspan="13" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Observations</td><td>372</td><td>372</td><td>372</td><td>372</td><td>371</td><td>371</td><td>371</td><td>371</td><td>372</td><td>372</td><td>372</td><td>372</td></tr>
+<tr><td style="text-align:left">R<sup>2</sup></td><td>0.31</td><td>0.37</td><td>0.38</td><td>0.51</td><td>0.51</td><td>0.72</td><td>0.79</td><td>0.86</td><td>0.42</td><td>0.57</td><td>0.64</td><td>0.81</td></tr>
+<tr><td style="text-align:left">Residual Std. Error</td><td>68.75</td><td>65.52</td><td>65.47</td><td>58.19</td><td>37.81</td><td>28.45</td><td>24.54</td><td>20.26</td><td>38.49</td><td>33.06</td><td>30.27</td><td>22.25</td></tr>
+<tr><td colspan="13" style="border-bottom: 1px solid black"></td></tr><tr><td style="text-align:left">Standard Deviation</td><td>23.90</td><td>23.90</td><td>23.90</td><td>23.90</td><td>15.42</td><td>15.42</td><td>15.42</td><td>15.42</td><td>14.57</td><td>14.57</td><td>14.57</td><td>14.57</td></tr>
+<tr><td style="text-align:left">Sharpe Ratio</td><td>0.65</td><td>0.83</td><td>0.92</td><td>0.82</td><td>0.36</td><td>0.28</td><td>0.18</td><td>0.21</td><td>0.65</td><td>0.71</td><td>0.68</td><td>0.60</td></tr>
+<tr><td style="text-align:left">Appr Ratio</td><td>0.48</td><td>0.71</td><td>0.82</td><td>0.72</td><td>0.17</td><td>-0.01</td><td>-0.26</td><td>-0.28</td><td>0.37</td><td>0.44</td><td>0.39</td><td>0.23</td></tr>
+<tr><td style="text-align:left">Alpha FF3</td><td>9.82<sup>***</sup></td><td>13.72<sup>***</sup></td><td>15.92<sup>***</sup></td><td>12.52<sup>***</sup></td><td>0.90</td><td>-0.73</td><td>-2.53<sup>*</sup></td><td>-2.12<sup>*</sup></td><td>4.08<sup>*</sup></td><td>4.26<sup>**</sup></td><td>3.60<sup>**</sup></td><td>1.62</td></tr>
+<tr><td style="text-align:left"></td><td>(3.48)</td><td>(3.21)</td><td>(3.15)</td><td>(2.77)</td><td>(2.00)</td><td>(1.67)</td><td>(1.43)</td><td>(1.13)</td><td>(2.10)</td><td>(1.79)</td><td>(1.63)</td><td>(1.20)</td></tr>
+<tr><td colspan="13" style="border-bottom: 1px solid black"></td></tr></table>
