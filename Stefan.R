@@ -25,6 +25,7 @@ library(sandwich)
 library(lmtest)
 library(extrafont)
 library(RColorBrewer)
+library(gridExtra)
 #font_import()
 
 # ***** Import Data *****
@@ -158,14 +159,11 @@ quantiles <- list()
 quantiles[[1]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(1/44, 1-1/44))
 quantiles[[2]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(0.05, 0.95))
 quantiles[[3]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(0.10, 0.90))
-quantiles[[4]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(0.15, 0.85))
-quantiles[[5]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(0.20, 0.80))
+quantiles[[4]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(0.25, 0.75))
+quantiles[[5]] <- apply(daily_vars[,16:25], 2, quantile, probs = c(0.50, 0.50))
 quantiles
 
 strategies <- colnames(daily_vars[16:25])
-
-quantile = 3
-strategy <- "Var_264_perc_dev"
 
 # Warning: Loop runs for ~ 10 mins and requires 400 MB of RAM
 for (quantile in 1:length(quantiles))
@@ -356,9 +354,7 @@ stargazer(models_mkt_one_year,
           se = robust_se_mkt_one_year,
           type = "text", out = "table_flex_one_year.htm",
           title = "Panel A: Interval of one year",
-          column.labels = c("95.5%", "90%",
-                            "80%", "70%",
-                            "60%"),
+          column.labels = c("95.5%", "90%", "80%", "50%", "0%"),
           column.separate = c(1,1,1,1,1),
           dep.var.labels = "<i>Volatility-Managed Return",
           dep.var.caption = "Quantile",
@@ -404,9 +400,7 @@ stargazer(models_mkt_one_month,
           se = robust_se_mkt_one_month,
           type = "text", out = "table_flex_one_month.htm",
           title = "Panel B: Interval of one month",
-          column.labels = c("95.5%", "90%",
-                            "80%", "70%",
-                            "60%"),
+          column.labels = c("95.5%", "90%", "80%", "50%", "0%"),
           column.separate = c(1,1,1,1,1),
           dep.var.labels = "<i>Volatility-Managed Return",
           dep.var.caption = "Quantile",
@@ -452,9 +446,7 @@ stargazer(models_mkt_EWMA,
           se = robust_se_mkt_EWMA,
           type = "text", out = "table_flex_EWMA.htm",
           title = "Panel A: EWMA",
-          column.labels = c("95.5%", "90%",
-                            "80%", "70%",
-                            "60%"),
+          column.labels = c("95.5%", "90%", "80%", "50%", "0%"),
           column.separate = c(1,1,1,1,1),
           dep.var.labels = "<i>Volatility-Managed Return",
           dep.var.caption = "Quantile",
@@ -500,9 +492,7 @@ stargazer(models_mkt_GARCH,
           se = robust_se_mkt_GARCH,
           type = "text", out = "table_flex_GARCH.htm",
           title = "Panel B: GARCH",
-          column.labels = c("95.5%", "90%",
-                            "80%", "70%",
-                            "60%"),
+          column.labels = c("95.5%", "90%", "80%", "50%", "0%"),
           column.separate = c(1,1,1,1,1),
           dep.var.labels = "<i>Volatility-Managed Return",
           dep.var.caption = "Quantile",
@@ -578,7 +568,9 @@ stargazer(output_flex_rmse_list, type = "text",
 
 # General settings
 display.brewer.pal(9, name = "Greys")
+display.brewer.pal(9, name = "Blues")
 grey_col <- brewer.pal(9, name = "Greys")
+blue_col <- brewer.pal(9, name = "Blues")
 line_size <- 0.7
 loadfonts(device = "win")
 windowsFonts(Times = windowsFont("TT Times New Roman"))
@@ -647,7 +639,7 @@ daily_vars %>%
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank())
 
-# Figure 2: Total returns Market, Moreira and Muir, Var 1 year, EWMA, GARCH, 60% quantile
+# Figure 2: Total returns Market, Moreira and Muir, Var 1 year, EWMA, GARCH, 50% quantile
 scale <- c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1,2,3,4,5,6,7,8,9,10,20,30,40,50,60,70,80,90,100,
            200,300,400,500,600,700,800,900,1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,
            20000,30000,40000,50000,60000,70000,80000,90000,100000)
@@ -655,12 +647,12 @@ dates <- seq.Date(from = as.Date("1930-1-1"), to = as.Date("2010-1-1"), by = "10
 ggplot() +
   geom_line(aes(y=tot_ret$Mkt, x=tot_ret$Date, colour="Buy and Hold"), size = line_size) +
   geom_line(aes(y=tot_ret$Base, x=tot_ret$Date, colour="Base Strategy"), size = line_size) +
-  geom_line(aes(y=returns_flex_list[[47]]$tot_ret_VM,
-                x=returns_flex_list[[47]]$Date, colour="Var 1 year"), size = line_size) +
-  geom_line(aes(y=returns_flex_list[[49]]$tot_ret_VM,
-                x=returns_flex_list[[49]]$Date, colour="EWMA"), size = line_size) +
-  geom_line(aes(y=returns_flex_list[[50]]$tot_ret_VM,
-                x=returns_flex_list[[50]]$Date, colour="GARCH"), size = line_size) +
+  geom_line(aes(y=returns_flex_list[[37]]$tot_ret_VM,
+                x=returns_flex_list[[37]]$Date, colour="Var 1 year"), size = line_size) +
+  geom_line(aes(y=returns_flex_list[[39]]$tot_ret_VM,
+                x=returns_flex_list[[39]]$Date, colour="EWMA"), size = line_size) +
+  geom_line(aes(y=returns_flex_list[[40]]$tot_ret_VM,
+                x=returns_flex_list[[40]]$Date, colour="GARCH"), size = line_size) +
   scale_y_continuous(trans = "log10",
                      breaks = trans_breaks('log10', function(x) 10^x),
                      minor_breaks = scale,
@@ -683,7 +675,8 @@ ggplot() +
                                 "EWMA" = grey_col[6],
                                 "GARCH" = grey_col[5]),
                      breaks = c("Buy and Hold", "Base Strategy",
-                                "Var 1 year", "EWMA", "GARCH"))
+                                "Var 1 year", "EWMA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Figure 3: Alphas for one month, one year interval, EWMA and GARCH strategy by quantile
 alphas_figure_3 <- list(0,0,0,0)
@@ -696,16 +689,16 @@ for (i in 1:4) {
   alphas_figure_3[[i]][5] <- output_flex_alpha_list[[5]][2,j]
 }
 ggplot() +
-  geom_line(aes(y=alphas_figure_3[[1]], x=c(1:5), colour="one month"), size = line_size) +
-  geom_point(aes(y=alphas_figure_3[[1]], x=c(1:5), colour="one month")) +
-  geom_line(aes(y=alphas_figure_3[[2]], x=c(1:5), colour="one year"), size = line_size) +
-  geom_point(aes(y=alphas_figure_3[[2]], x=c(1:5), colour="one year")) +
-  geom_line(aes(y=alphas_figure_3[[3]], x=c(1:5), colour="EWMA"), size = line_size) +
-  geom_point(aes(y=alphas_figure_3[[3]], x=c(1:5), colour="EWMA")) +
-  geom_line(aes(y=alphas_figure_3[[4]], x=c(1:5), colour="GARCH"), size = line_size) +
-  geom_point(aes(y=alphas_figure_3[[4]], x=c(1:5), colour="GARCH")) +
-  scale_x_continuous(limits = c(1,5), breaks = c(1:5),  minor_breaks = NULL) +
-  scale_y_continuous(limits = c(0,5), breaks = c(0:5), minor_breaks = NULL) +
+  geom_line(aes(y=alphas_figure_3[[1]], x=c(22,10,5,2,1), colour="one month"), size = line_size) +
+  geom_point(aes(y=alphas_figure_3[[1]], x=c(22,10,5,2,1), colour="one month")) +
+  geom_line(aes(y=alphas_figure_3[[2]], x=c(22,10,5,2,1), colour="one year"), size = line_size) +
+  geom_point(aes(y=alphas_figure_3[[2]], x=c(22,10,5,2,1), colour="one year")) +
+  geom_line(aes(y=alphas_figure_3[[3]], x=c(22,10,5,2,1), colour="EWMA"), size = line_size) +
+  geom_point(aes(y=alphas_figure_3[[3]], x=c(22,10,5,2,1), colour="EWMA")) +
+  geom_line(aes(y=alphas_figure_3[[4]], x=c(22,10,5,2,1), colour="GARCH"), size = line_size) +
+  geom_point(aes(y=alphas_figure_3[[4]], x=c(22,10,5,2,1), colour="GARCH")) +
+  scale_x_continuous(limits = c(0,25), breaks = c(22,10,5,2,1),  minor_breaks = NULL) +
+  scale_y_continuous(limits = c(0,6), breaks = c(0:6), minor_breaks = NULL) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
         legend.box.background = element_rect(),
@@ -714,14 +707,15 @@ ggplot() +
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
         axis.text.y = element_text(size = 11)) +
-  ggtitle("Alphas for selected strategies") + xlab("quantiles") + ylab("") +
+  ggtitle("Alphas for selected strategies") + xlab("Average days of reallocation") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("one month" = grey_col[9],
-                                "one year" = grey_col[8],
-                                "EWMA" = grey_col[7],
-                                "GARCH" = grey_col[6]),
+                     values = c("one month" = blue_col[9],
+                                "one year" = blue_col[8],
+                                "EWMA" = blue_col[7],
+                                "GARCH" = blue_col[6]),
                      breaks = c("one month", "one year",
-                                "EWMA", "GARCH"))
+                                "EWMA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 
 # Figure 4: Average absolute weights by quantile over interval
@@ -733,9 +727,9 @@ ggplot() +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[3]][1,c(1:8)]), x=intervals,
                 colour="80% quantile"), size = line_size) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][1,c(1:8)]), x=intervals,
-                colour="70% quantile"), size = line_size) +
+                colour="50% quantile"), size = line_size) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][1,c(1:8)]), x=intervals,
-                colour="60% quantile"), size = line_size) +
+                colour="0% quantile"), size = line_size) +
   scale_x_log10(breaks = intervals, minor_breaks = NULL) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -747,28 +741,37 @@ ggplot() +
         axis.text.y = element_text(size = 11)) +
   ggtitle("Average absolute change in weights by quantile over interval") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("95.5% quantile" = grey_col[9],
-                                "90% quantile" = grey_col[8],
-                                "80% quantile" = grey_col[7],
-                                "70% quantile" = grey_col[6],
-                                "60% quantile" = grey_col[5]),
+                     values = c("95.5% quantile" = blue_col[9],
+                                "90% quantile" = blue_col[8],
+                                "80% quantile" = blue_col[7],
+                                "50% quantile" = blue_col[6],
+                                "0% quantile" = blue_col[5]),
                      breaks = c("95.5% quantile", "90% quantile",
-                                "80% quantile", "70% quantile", "60% quantile"))
+                                "80% quantile", "50% quantile", "0% quantile")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 # Figure 5: Alphas for one month, one year interval, EWMA and GARCH strategy for
-# the 60% quantile considering transaction costs
+# the 0% quantile considering transaction costs
 trading_costs <- c(0.00, 0.01, 0.10, 0.14)
 ggplot() +
-  geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][-1,3]), x=trading_costs,
+  geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,3]), x=trading_costs,
                 colour="one month"), size = line_size) +
-  geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][-1,7]), x=trading_costs,
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,3]), x=trading_costs,
+                colour="one month")) +
+  geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,7]), x=trading_costs,
                 colour="one year"), size = line_size) +
-  geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][-1,9]), x=trading_costs,
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,7]), x=trading_costs,
+                colour="one year")) +
+  geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,9]), x=trading_costs,
                 colour="EWMA"), size = line_size) +
-  geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][-1,10]), x=trading_costs,
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,9]), x=trading_costs,
+                colour="EWMA")) +
+  geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,10]), x=trading_costs,
                 colour="GARCH"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[4]][-1,10]), x=trading_costs,
+                colour="GARCH")) +
   scale_x_continuous(breaks = trading_costs, minor_breaks = NULL) +
-  scale_y_continuous(limits = c(0,5), breaks = c(0:5), minor_breaks = NULL) +
+  scale_y_continuous(limits = c(0,6), breaks = c(0:6), minor_breaks = NULL) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
         legend.box.background = element_rect(),
@@ -779,12 +782,13 @@ ggplot() +
         axis.text.y = element_text(size = 11)) +
   ggtitle("Alphas for selected strategies considering transaction costs") + xlab("transaction costs") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("one month" = grey_col[9],
-                                "one year" = grey_col[8],
-                                "EWMA" = grey_col[7],
-                                "GARCH" = grey_col[6]),
+                     values = c("one month" = blue_col[9],
+                                "one year" = blue_col[8],
+                                "EWMA" = blue_col[7],
+                                "GARCH" = blue_col[6]),
                      breaks = c("one month", "one year",
-                                "EWMA", "GARCH"))
+                                "EWMA", "GARCH")) +
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
 
 # Figure 6: Example for when better to exclude last returns: April 1927
@@ -793,7 +797,7 @@ var(FF_daily$Mkt[225:249])*24/25*25
 # Monthly variance excluding the last six days
 var(FF_daily$Mkt[225:243])*24/25*25
 # Return of May 1927: 5.74%
-ggplot() +
+fig12 <- ggplot() +
   geom_line(aes(y=as.numeric(FF_daily$Mkt[225:249]), x=as.Date(FF_daily$Date[225:249]),
                 colour="Mkt"), size = line_size) +
   scale_x_date() +
@@ -808,7 +812,7 @@ ggplot() +
         axis.text.y = element_text(size = 11)) +
   ggtitle("Market returns in April 1927") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Mkt" = grey_col[9]),
+                     values = c("Mkt" = blue_col[9]),
                      breaks = c("Mkt"))
 
 # Figure 7: Example for when better to exclude first returns: February 1940
@@ -816,7 +820,7 @@ ggplot() +
 var(FF_daily$Mkt[4052:4074])*24/25*25
 # Monthly variance excluding the first seven days
 var(FF_daily$Mkt[4059:4074])*24/25*25
-ggplot() +
+fig13 <- ggplot() +
   geom_line(aes(y=as.numeric(FF_daily$Mkt[4052:4074]), x=as.Date(FF_daily$Date[4052:4074]),
                 colour="Mkt"), size = line_size) +
   scale_x_date() +
@@ -831,8 +835,12 @@ ggplot() +
         axis.text.y = element_text(size = 11)) +
   ggtitle("Market returns in February 1940") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Mkt" = grey_col[9]),
+                     values = c("Mkt" = blue_col[9]),
                      breaks = c("Mkt"))
+
+# Plot both next to each other
+grid.arrange(fig12, fig13, ncol = 2)
+
 
 # Figure 8: Example for when variance keeps the same for period longer than a month
 trailing_vars <- c(1:153)
@@ -855,10 +863,10 @@ ggplot() +
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
         axis.text.y = element_text(size = 11)) +
-  ggtitle("Market returns and their variance in 1963") + xlab("") + ylab("") +
+  ggtitle("Market Returns and their Variance in 1963") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Mkt" = grey_col[6],
-                                "22-day trailing Variance" = grey_col[9]),
+                     values = c("Mkt" = blue_col[6],
+                                "22-day trailing Variance" = blue_col[9]),
                      breaks = c("Mkt", "22-day trailing Variance"))
 
 
