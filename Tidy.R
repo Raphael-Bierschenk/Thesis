@@ -38,6 +38,7 @@ library(lmtest)
 library(extrafont)
 library(RColorBrewer)
 library(cowplot)
+library(gridExtra)
 
 # Import Data
 FF_daily <- read_csv("F-F_Research_Data_Factors_daily.CSV", col_names = TRUE, skip = 3)
@@ -176,7 +177,7 @@ var_m <- var_m %>% mutate(GARCH_var = GARCH_var * 10000, GARCH_vol = sqrt(GARCH_
 
 # Set Up Parameter for Following GGPlots
 black_col <- brewer.pal(9, name = "Greys")[4:8]
-blue_col <- brewer.pal(9, name = "Blues")[c(5,7,8)] 
+blue_col <- brewer.pal(9, name = "Blues")
 green_col <- brewer.pal(9, name = "Greens")[5]
 grey_col <- brewer.pal(9, name = "Greys")[5]
 
@@ -186,14 +187,10 @@ windowsFonts(Times = windowsFont("TT Times New Roman"))
 
 # Plot Variance Estimates by 4 Measures
 ggplot(var_m, aes(x = date)) +
-  geom_line(aes(y = vol * sqrt(trading_months), color = "Realized Variance",
-                linetype = "Realized Variance"), size = line_size) +
-  geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA",
-                linetype = "ARIMA"), size = line_size) +
-  geom_line(aes(y = ESA_vol * sqrt(trading_months), color = "ESA",
-                linetype = "ESA"), size = line_size) +
-  geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH",
-                linetype = "GARCH"), size = line_size) +
+  geom_line(aes(y = vol * sqrt(trading_months), color = "Realized Variance"), size = line_size) +
+  geom_line(aes(y = ARIMA_vol * sqrt(trading_months), color = "ARIMA"), size = line_size) +
+  geom_line(aes(y = ESA_vol * sqrt(trading_months), color = "ESA"), size = line_size) +
+  geom_line(aes(y = GARCH_vol * sqrt(trading_months), color = "GARCH"), size = line_size) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
         legend.box.background = element_rect(),
@@ -207,21 +204,22 @@ ggplot(var_m, aes(x = date)) +
   ggtitle("Annualized Volatility") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
-                     values = c("Buy and Hold" = black_col[5],
-                                "Realized Variance" = black_col[4],
-                                "ARIMA" = black_col[3],
-                                "ESA" = black_col[2],
-                                "GARCH" = black_col[1]),
-                     breaks = c("Buy and Hold", "Realized Variance",
+                     values = c("Realized Variance" = blue_col[4],
+                                "ARIMA" = blue_col[6],
+                                "ESA" = blue_col[8],
+                                "GARCH" = blue_col[9]),
+                     breaks = c("Realized Variance",
                                 "ARIMA", "ESA", "GARCH")) +
-  scale_linetype_manual(name = "", 
-                     values = c("Buy and Hold" = "solid",
-                                "Realized Variance" = "dotted",
-                                "ARIMA" = "dotdash",
-                                "ESA" = "twodash",
-                                "GARCH" = "longdash"),
-                     breaks = c("Buy and Hold", "Realized Variance",
-                                "ARIMA", "ESA", "GARCH"))
+  guides(colour = guide_legend(override.aes = list(size = 1.2)))
+  #guides(linetype = guide_legend(override.aes = list(size = 5))) #+
+  # scale_linetype_manual(name = "", 
+  #                    values = c("Buy and Hold" = "solid",
+  #                               "Realized Variance" = "dotted",
+  #                               "ARIMA" = "dotdash",
+  #                               "ESA" = "twodash",
+  #                               "GARCH" = "longdash"),
+  #                    breaks = c("Buy and Hold", "Realized Variance",
+  #                               "ARIMA", "ESA", "GARCH"))
 
 # Analyze Predictive Power of Variance Estimates with Regressions
 var_names <- c("var", "ARIMA_var", "ESA_var", "GARCH_var")
