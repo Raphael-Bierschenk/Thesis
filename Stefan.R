@@ -726,14 +726,24 @@ ggplot() +
 ggplot() +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[1]][1,c(1:8)]), x=intervals,
                 colour="95.5% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[1]][1,c(1:8)]), x=intervals,
+                colour="95.5% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[2]][1,c(1:8)]), x=intervals,
                 colour="90% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[2]][1,c(1:8)]), x=intervals,
+                colour="90% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[3]][1,c(1:8)]), x=intervals,
                 colour="80% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[3]][1,c(1:8)]), x=intervals,
+                colour="80% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][1,c(1:8)]), x=intervals,
                 colour="50% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[4]][1,c(1:8)]), x=intervals,
+                colour="50% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][1,c(1:8)]), x=intervals,
                 colour="0% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[5]][1,c(1:8)]), x=intervals,
+                colour="0% quantile")) +
   scale_x_log10(breaks = intervals, minor_breaks = NULL) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -811,7 +821,7 @@ fig12 <- ggplot() +
   scale_x_date() +
   scale_y_continuous(limits = c(-2,2), breaks = c(-2:2), minor_breaks = NULL) +
   theme_bw(base_family = "Times New Roman") +
-  theme(legend.position = "none", 
+  theme(legend.position = "bottom", 
         legend.box.background = element_rect(),
         legend.box.margin = margin(1,1,1,1),
         legend.text = element_text(size = 12),
