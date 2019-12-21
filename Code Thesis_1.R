@@ -1,6 +1,6 @@
 ## ---------------------------------------------------------------------------##
 ##                                                                            ##
-## Script name: Code Master Thesis                                            ##
+## Script name: Code Master Thesis 1                                          ##
 ##                                                                            ##  
 ## Author: Raphael Bierschenk, Stefan Wennemar                                ##
 ##                                                                            ##
@@ -8,8 +8,7 @@
 ##                                                                            ##
 ## ---------------------------------------------------------------------------##
 
-
-# If first time: run command
+# If first time: set working directory and run command:
 # font_import()
 
 # Set Up: Initiate Packages
@@ -102,8 +101,6 @@ variance_ts_m <- xts(var_m$var, order.by = var_m$date)
 
 kpss.test(var_m$var)
 kpss.test(diff(var_m$var))
-adf.test(diff(var_m$var))
-pp.test(diff(var_m$var))
 
 # Only Change Display of Graphs if Window is Large Enough, Otherwise Margin Error
 # par(mfrow=c(2,1))
@@ -287,7 +284,7 @@ a_qe_m <- c(1:length(names))
 b_qe_m <- c(1:length(names))
 c_qe_m <- c(1:length(names))
 
-# Usage of Population Variance, since the prefactor cancels out on aggregate
+# Usage of Population Variance, since the Prefactor Cancels out on Aggregate
 for (i in 1:length(names)) {
   a_qe_m[i] <- var(FF_monthly$`mkt-rf`[-1] / var_m[-n_months,var_names[i]])
   b_qe_m[i] <- 2 * cov(FF_monthly$`mkt-rf`[-1] / var_m[-n_months,var_names[i]], 
@@ -483,7 +480,7 @@ ggplot(returns_rolling_m, aes(x=date)) +
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
-  ggtitle("Rolling One Year Return") +
+  ggtitle("Rolling One-Year Return") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = "#000000",
@@ -573,7 +570,7 @@ stargazer(stat_weight_m, type = "text",summary = FALSE,
           out = "table.htm", digits = 2)
 
 # Plot Density Function of Returns
-fig09 <- ggplot(returns_m) +
+ggplot(returns_m) +
   stat_density(aes(x=mkt, color = "Buy and Hold"), 
                adjust = 1, size = line_size, geom = "line") +
   stat_density(aes(x=var_managed, color = "Realized Variance"), 
@@ -594,8 +591,7 @@ fig09 <- ggplot(returns_m) +
         axis.text.x = element_text(size = 11),
         axis.text.y = element_text(size = 11),
         panel.grid.major = element_blank(),
-        panel.grid.minor = element_blank(),
-        plot.margin = unit(c(0,0,0,2), "cm")) +
+        panel.grid.minor = element_blank()) +
   ylim(0,0.15) +
   ggtitle("Density Function of Returns") +
   ylab("") + xlab("") +
@@ -609,7 +605,7 @@ fig09 <- ggplot(returns_m) +
                                 "ARIMA", "ESA", "GARCH")) +
   guides(colour = guide_legend(override.aes = list(size = 1.2)))
 
-fig10 <- ggplot(weights_m) +
+ggplot(weights_m) +
   stat_density(aes(x=var_managed, color = "Realized Variance"), 
                adjust = 1, size = line_size, geom = "line") +
   stat_density(aes(x=ARIMA_var_managed, color = "ARIMA"), 
@@ -639,9 +635,6 @@ fig10 <- ggplot(weights_m) +
                      breaks = c("Buy and Hold", "Realized Variance",
                                 "ARIMA", "ESA", "GARCH")) +
   guides(colour = guide_legend(override.aes = list(size = 1.2)))
-
-grid.arrange(fig09, fig10, nrow = 2)
-
 
 # Compute Impact of Trading Costs and Breakeven Costs
 breakeven_function_m <- function(cost, strategy) {
@@ -902,8 +895,9 @@ for (i in 1:length(extreme_periods)) {
 stargazer(cor_m, summary = FALSE, type = "text", out = "table.htm", digits = 2)
 
 ################################################################################
-#*************************** Customary Time Periods ***************************#
+#****************************** Three Subperiods ******************************#
 
+# Create Subperiods and Repeat Steps from above to Derive Regression Table
 sub_dates <- data.frame(matrix(nrow = 3, ncol = 2, 
                                dimnames = list(c("Period 1", "Period 2", "Period 3"),
                                                c("First Day", "Last Day"))))
@@ -1104,7 +1098,7 @@ stargazer(reg_mkt_m_sub[[1]][[1]], reg_mkt_m_sub[[1]][[2]],
           digits = 2, out = "table.htm")
 
 ################################################################################
-#******************************** Custom Level ********************************#
+#***************************** Custom Rebalancing *****************************#
 
 # Set Up List to Store Outputs from Different Frequencies
 min_frequ <- 5
@@ -1352,7 +1346,7 @@ appr_cost_c <- data.frame(matrix(ncol = length(names),
                                  nrow = max_frequ - min_frequ + 1,
                                  dimnames = list(min_frequ:max_frequ, names)))
 
-# Plot Alphas and Appraisal Ratios
+# Plot Alphas, Appraisal Ratios, and Cumulative Performance (and group graphs)
 for (i in 1:(max_frequ - min_frequ + 1)) {
   for (j in 1:length(names)) {
     alpha_c[i,j] <- reg_output_c[[i]][1,j]
@@ -1486,7 +1480,7 @@ fig19 <- ggplot(final_return_c, aes(x = c(min_frequ:max_frequ))) +
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
   scale_y_continuous(breaks = c(25000,50000,75000), limits = c(0,90000)) +
-  ggtitle("Cumulated Return Depending on Holding Period") +
+  ggtitle("Cumulative Performance Depending on Holding Period") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Realized Variance" = blue_col[4],
@@ -1513,7 +1507,7 @@ fig20 <- ggplot(final_return_cost_c, aes(x = c(min_frequ:max_frequ))) +
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank()) +
   scale_y_continuous(breaks = c(25000,50000,75000), limits = c(0,90000)) +
-  ggtitle("Cumulated Return Depending on Holding Period (10 bps Trading Cost)") +
+  ggtitle("Cumulative Performance Depending on Holding Period (10 bps Trading Cost)") +
   xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Realized Variance" = blue_col[4],

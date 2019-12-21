@@ -1,3 +1,13 @@
+## ---------------------------------------------------------------------------##
+##                                                                            ##
+## Script name: Code Master Thesis 2                                          ##
+##                                                                            ##  
+## Author: Raphael Bierschenk, Stefan Wennemar                                ##
+##                                                                            ##
+## Date Created: 2018-12-09                                                   ##
+##                                                                            ##
+## ---------------------------------------------------------------------------##
+
 rm(list = ls())
 options(warn=-1)
 
@@ -61,8 +71,25 @@ FF_daily$u <- log(1+FF_daily$`Mkt-RF`/100)
 FF_daily$u_sq <- FF_daily$u^2
 
 # Calculate EWMA Variances
-# Parameters estimated with ML for 19260701 - 20190830
-lambda = 0.937456814037826
+# Estimate Parameters
+ewma_function_daily <- function(lambda)
+{
+  ewma_variances <- c(1:nrow(FF_daily))
+  ewma_variances[1] <- FF_daily$u_sq[1]
+  for(i in 2:nrow(FF_daily)) {
+    ewma_variances[i] <- lambda*ewma_variances[i-1] + (1-lambda)*FF_daily$u_sq[i]
+  }
+  ewma_likelihood <- c(1:(nrow(FF_daily)-1))
+  for(i in 1:(nrow(FF_daily)-1)) {
+    ewma_likelihood[i] <- -log(ewma_variances[i])-FF_daily$u_sq[i+1]/ewma_variances[i]
+  }
+  return (sum(ewma_likelihood))
+}
+print(ewma_max_daily <- optimize(ewma_function_daily, interval = c(0, 1), 
+                                 maximum = TRUE, tol = 0.000000000000001))
+
+# Calculate Variance
+lambda = ewma_max_daily$maximum
 FF_daily$EWMA_vars <- c(1:nrow(FF_daily))
 FF_daily$EWMA_vars[1] <- FF_daily$u_sq[1]
 for (i in 2:nrow(FF_daily)) {
@@ -70,10 +97,29 @@ for (i in 2:nrow(FF_daily)) {
 }
 
 # Calculate GARCH Variances
-# Parameters estimated with ML for 19260701 - 20190830
-omega = 0.00000125947711345891
-alpha = 0.0986757938205847
-beta = 0.890202868683846
+# Estimate Parameters
+long_term_variance <- mean(FF_daily$u_sq)
+garch_function_daily <- function(alpha, beta)
+{
+  omega <- max(0,long_term_variance*(1-alpha-beta))
+  garch_variances <- c(1:nrow(FF_daily))
+  garch_variances[1] <- FF_daily$u_sq[1]
+  for(i in 2:nrow(FF_daily)) {
+    garch_variances[i] <- omega + beta*garch_variances[i-1] + alpha*FF_daily$u_sq[i]
+  }
+  garch_likelihood <- c(1:(nrow(FF_daily)-1))
+  for(i in 1:(nrow(FF_daily)-1)) {
+    garch_likelihood[i] <- -log(garch_variances[i])-FF_daily$u_sq[i+1]/garch_variances[i]
+  }
+  return (sum(garch_likelihood))
+}
+print(garch_max_daily <- optimx(c(0.1, 0.9), function(x) garch_function_daily(x[1], x[2]), 
+                                method = "Nelder-Mead", control = list(maximize = TRUE)))
+
+# Calculate Variance
+omega = max(0,long_term_variance*(1-alpha_daily-beta_daily))
+alpha = garch_max_daily$p1
+beta = garch_max_daily$p2
 FF_daily$GARCH_vars <- c(1:nrow(FF_daily))
 FF_daily$GARCH_vars[1] <- FF_daily$u_sq[1]
 for (i in 2:nrow(FF_daily)) {
