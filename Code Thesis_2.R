@@ -712,7 +712,9 @@ ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
   ggtitle("Cumulative Performance") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Buy and Hold" = grey_col[9],
@@ -752,8 +754,10 @@ ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
-  ggtitle("Alphas for selected strategies") + xlab("Average days of reallocation") + ylab("") +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Alphas for selected strategies") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("one month" = blue_col[9],
                                 "one year" = blue_col[8],
@@ -768,14 +772,24 @@ ggplot() +
 ggplot() +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[1]][1,c(1:8)]), x=intervals,
                 colour="95.5% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[1]][1,c(1:8)]), x=intervals,
+                colour="95.5% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[2]][1,c(1:8)]), x=intervals,
                 colour="90% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[2]][1,c(1:8)]), x=intervals,
+                colour="90% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[3]][1,c(1:8)]), x=intervals,
                 colour="80% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[3]][1,c(1:8)]), x=intervals,
+                colour="80% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[4]][1,c(1:8)]), x=intervals,
                 colour="50% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[4]][1,c(1:8)]), x=intervals,
+                colour="50% quantile")) +
   geom_line(aes(y=as.numeric(output_flex_alpha_list[[5]][1,c(1:8)]), x=intervals,
                 colour="0% quantile"), size = line_size) +
+  geom_point(aes(y=as.numeric(output_flex_alpha_list[[5]][1,c(1:8)]), x=intervals,
+                colour="0% quantile")) +
   scale_x_log10(breaks = intervals, minor_breaks = NULL) +
   theme_bw(base_family = "Times New Roman") +
   theme(legend.position = "bottom", 
@@ -784,7 +798,9 @@ ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
   ggtitle("Average absolute change in weights by quantile over interval") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("95.5% quantile" = blue_col[9],
@@ -825,8 +841,10 @@ ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
-  ggtitle("Alphas for selected strategies considering transaction costs") + xlab("transaction costs") + ylab("") +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
+  ggtitle("Alphas for selected strategies considering transaction costs") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("one month" = blue_col[9],
                                 "one year" = blue_col[8],
@@ -855,7 +873,9 @@ fig12 <- ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
   ggtitle("Market returns in April 1927") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Mkt" = blue_col[9]),
@@ -878,7 +898,9 @@ fig13 <- ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
   ggtitle("Market returns in February 1940") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Mkt" = blue_col[9]),
@@ -908,48 +930,12 @@ ggplot() +
         legend.text = element_text(size = 12),
         plot.title = element_text(hjust = 0.5, vjust = 2, size = 14),
         axis.text.x = element_text(size = 11),
-        axis.text.y = element_text(size = 11)) +
+        axis.text.y = element_text(size = 11),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank()) +
   ggtitle("Market Returns and their Variance in 1963") + xlab("") + ylab("") +
   scale_color_manual(name = "", 
                      values = c("Mkt" = blue_col[6],
                                 "22-day trailing Variance" = blue_col[9]),
                      breaks = c("Mkt", "22-day trailing Variance"))
-
-
-#********************************************************************************************************
-
-
-names_flex_cost <- c("Var", "Var_1bps", "Var_10bps", "Var_14bps", "EWMA", "EWMA_1bps", "EWMA_10bps", "EWMA_14bps",
-                     "GARCH", "GARCH_1bps", "GARCH_10bps", "GARCH_14bps")
-reg_output_flex <- data.frame(matrix(ncol = length(names_flex_cost), nrow = length(output_names)))
-colnames(reg_output_flex) <- names_flex_cost
-rownames(reg_output_flex) <- output_names
-
-output_names <- c("alpha_mkt", "alpha_mkt_se", "alpha_mkt_pval", "alpha_ff3", "alpha_ff3_se", "alpha_ff3_pval", "beta_mkt",
-                  "beta_mkt_se", "beta_mkt_pval", "N", "R^2_mkt", "RMSE_mkt", "SR_new", "Appr_Ratio", "Performance")
-for (i in 1:length(names_flex_cost)) {
-  model_mkt <- get(paste("reg_flex_", names_flex_cost[i], sep = ""))
-  model_ff3 <- get(paste("reg_flex_ff3_", names_flex_cost[i], sep = ""))
-  robust_se_mkt <- sqrt(diag(vcovHC(model_mkt, type = "HC")))
-  robust_se_ff3 <- sqrt(diag(vcovHC(model_ff3, type = "HC")))
-  reg_output_flex["alpha_mkt", i] <- model_mkt$coefficients[1] * factors[i]
-  reg_output_flex["alpha_mkt_se", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[1,2] * factors[i]
-  reg_output_flex["alpha_mkt_pval", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[1,4]
-  reg_output_flex["alpha_ff3", i] <- model_ff3$coefficients[1] * factors[i]
-  reg_output_flex["alpha_ff3_se", i] <- coeftest(model_ff3, vcovHC(model_ff3, type = "HC"))[1,2] * factors[i]
-  reg_output_flex["alpha_ff3_pval", i] <- coeftest(model_ff3, vcovHC(model_ff3, type = "HC"))[1,4]
-  reg_output_flex["beta_mkt", i] <- model_mkt$coefficients[2]
-  reg_output_flex["beta_mkt_se", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[2,2] * factors[i]
-  reg_output_flex["beta_mkt_pval", i] <- coeftest(model_mkt, vcovHC(model_mkt, type = "HC"))[2,4]
-  reg_output_flex["N", i] <- sum(summary(model_mkt)$df[1:2])
-  reg_output_flex["R^2_mkt", i] <- summary(model_mkt)$r.squared
-  reg_output_flex["RMSE_mkt", i] <- sigma(model_mkt) * factors[i]
-  reg_output_flex["SR_new", i] <- factors[i] * 
-    mean(get(paste("vars_flexible_v2_", names_flex[ceiling(i/4)], sep = ""))[[c("VMR_14bps", "VMR", "VMR_1bps", "VMR_10bps")[i%%4+1]]] - 
-           get(paste("vars_flexible_v2_", names_flex[ceiling(i/4)], sep = ""))$RF) / (sqrt(factors[i]) *
-                                                                                        sd(get(paste("vars_flexible_v2_", names_flex[ceiling(i/4)], sep = ""))[[c("VMR_14bps", "VMR", "VMR_1bps", "VMR_10bps")[i%%4+1]]] -
-                                                                                             get(paste("vars_flexible_v2_", names_flex[ceiling(i/4)], sep = ""))$RF))
-  reg_output_flex["Appr_Ratio", i] <- sqrt(factors[i]) * reg_output_flex["alpha_mkt", i] / reg_output_flex["RMSE", i]
-  reg_output_flex["Performance", i] <- tail(get(paste("tot_ret_VM_", names_flex[ceiling(i/4)], sep = ""))[,c(5,2,3,4)[i%%4+1]], n = 1)
-}
 
